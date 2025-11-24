@@ -5,8 +5,11 @@ namespace App\Entity;
 use App\Repository\QuittanceRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
+use ApiPlatform\Metadata\ApiResource;
 
 #[ORM\Entity(repositoryClass: QuittanceRepository::class)]
+#[ORM\HasLifecycleCallbacks]
+#[ApiResource]
 class Quittance
 {
     #[ORM\Id]
@@ -51,6 +54,18 @@ class Quittance
     #[ORM\Column]
     private ?\DateTimeImmutable $updatedAt = null;
 
+        #[ORM\PrePersist]
+    public function setCreatedAtValue(): void
+    {
+        $this->createdAt = new \DateTimeImmutable();
+        $this->updatedAt = new \DateTimeImmutable();
+    }
+
+    #[ORM\PreUpdate]
+    public function setUpdatedAtValue(): void
+    {
+        $this->updatedAt = new \DateTimeImmutable();
+    }
     public function getId(): ?int
     {
         return $this->id;

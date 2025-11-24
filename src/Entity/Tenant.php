@@ -6,8 +6,11 @@ use App\Repository\TenantRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use ApiPlatform\Metadata\ApiResource;
 
 #[ORM\Entity(repositoryClass: TenantRepository::class)]
+#[ORM\HasLifecycleCallbacks]
+#[ApiResource]
 class Tenant
 {
     #[ORM\Id]
@@ -32,13 +35,26 @@ class Tenant
 
     #[ORM\Column]
     private ?\DateTimeImmutable $updatedAt = null;
+    #[ORM\PrePersist]
+    public function setCreatedAtValue(): void
+    {
+        $this->createdAt = new \DateTimeImmutable();
+        $this->updatedAt = new \DateTimeImmutable();
+    }
 
+    #[ORM\PreUpdate]
+    public function setUpdatedAtValue(): void
+    {
+        $this->updatedAt = new \DateTimeImmutable();
+    }
 
     /**
      * @var Collection<int, Lease>
      */
     #[ORM\ManyToMany(targetEntity: Lease::class, mappedBy: 'tenants')]
     private Collection $leases;
+
+    
 
     public function __construct()
     {
@@ -145,4 +161,6 @@ class Tenant
         }
         return $this;
     }
+
+    
 }
