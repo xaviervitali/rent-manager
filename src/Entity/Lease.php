@@ -2,73 +2,82 @@
 
 namespace App\Entity;
 
+use ApiPlatform\Metadata\ApiResource;
 use App\Repository\LeaseRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
-use ApiPlatform\Metadata\ApiResource;
+use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: LeaseRepository::class)]
 #[ORM\HasLifecycleCallbacks]
-#[ApiResource]
+#[ApiResource(
+    normalizationContext: ['groups' => ['lease:read']],
+    denormalizationContext: ['groups' => ['lease:write']]
+)]
 class Lease
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[Groups(['lease:read', 'housing:read'])] // ← Ajouté 'housing:read'
     private ?int $id = null;
 
-    #[ORM\ManyToOne(inversedBy: 'leases')]
+    #[ORM\ManyToOne(targetEntity: Housing::class, inversedBy: 'leases')]
     #[ORM\JoinColumn(nullable: false)]
+    #[Groups(['lease:read', 'lease:write'])]
     private ?Housing $housing = null;
 
-    /**
-     * @var Collection<int, Tenant>
-     */
-    #[ORM\ManyToMany(targetEntity: Tenant::class, inversedBy: 'leases')]
-    #[ORM\JoinTable(name: 'lease_tenant')]
-    private Collection $tenants;
-
     #[ORM\Column(type: Types::DATE_IMMUTABLE)]
+    #[Groups(['lease:read', 'lease:write', 'housing:read'])] // ← Ajouté 'housing:read'
     private ?\DateTimeImmutable $startDate = null;
 
     #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    #[Groups(['lease:read', 'lease:write', 'housing:read'])] // ← Ajouté 'housing:read'
     private ?\DateTimeImmutable $endDate = null;
 
-    #[ORM\Column(length: 50)]
-    private ?string $status = null; // 'active', 'terminated', 'pending'
+
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    #[Groups(['lease:read', 'lease:write'])]
+    private ?string $note = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    #[Groups(['lease:read', 'lease:write'])]
+    private ?string $contractFile = null; // Chemin vers le PDF du bail
 
     #[ORM\Column]
+    #[Groups(['lease:read'])]
     private ?\DateTimeImmutable $createdAt = null;
 
     #[ORM\Column]
+    #[Groups(['lease:read'])]
     private ?\DateTimeImmutable $updatedAt = null;
 
-        #[ORM\PrePersist]
-    public function setCreatedAtValue(): void
+    /**
+     * @var Collection<int, LeaseTenant>
+     */
+    #[ORM\OneToMany(targetEntity: LeaseTenant::class, mappedBy: 'lease', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[Groups(['lease:read'])]
+    private Collection $leaseTenants;
+
+    #[ORM\ManyToOne(inversedBy: 'leases')]
+    private ?User $user = null;
+
+    public function __construct()
     {
+        $this->leaseTenants = new ArrayCollection();
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
     }
 
     #[ORM\PreUpdate]
-    public function setUpdatedAtValue(): void
+    public function preUpdate(): void
     {
         $this->updatedAt = new \DateTimeImmutable();
     }
 
-    /**
-     * @var Collection<int, Imputation>
-     */
-    #[ORM\OneToMany(targetEntity: Imputation::class, mappedBy: 'lease', orphanRemoval: true)]
-    private Collection $imputations;
-    public function __construct()
-    {
-        $this->tenants = new ArrayCollection();
-        $this->status = 'pending'; // valeur par défaut
-        $this->imputations = new ArrayCollection();
-    }
+    // ... getters/setters standards ...
 
     public function getId(): ?int
     {
@@ -83,28 +92,6 @@ class Lease
     public function setHousing(?Housing $housing): static
     {
         $this->housing = $housing;
-        return $this;
-    }
-
-    /**
-     * @return Collection<int, Tenant>
-     */
-    public function getTenants(): Collection
-    {
-        return $this->tenants;
-    }
-
-    public function addTenant(Tenant $tenant): static
-    {
-        if (!$this->tenants->contains($tenant)) {
-            $this->tenants->add($tenant);
-        }
-        return $this;
-    }
-
-    public function removeTenant(Tenant $tenant): static
-    {
-        $this->tenants->removeElement($tenant);
         return $this;
     }
 
@@ -130,14 +117,26 @@ class Lease
         return $this;
     }
 
-    public function getStatus(): ?string
+
+    public function getNote(): ?string
     {
-        return $this->status;
+        return $this->note;
     }
 
-    public function setStatus(string $status): static
+    public function setNote(?string $note): static
     {
-        $this->status = $status;
+        $this->note = $note;
+        return $this;
+    }
+
+    public function getContractFile(): ?string
+    {
+        return $this->contractFile;
+    }
+
+    public function setContractFile(?string $contractFile): static
+    {
+        $this->contractFile = $contractFile;
         return $this;
     }
 
@@ -163,27 +162,66 @@ class Lease
         return $this;
     }
 
-    public function getImputations(): Collection
+    /**
+     * @return Collection<int, LeaseTenant>
+     */
+    public function getLeaseTenants(): Collection
     {
-        return $this->imputations;
+        return $this->leaseTenants;
     }
 
-    public function addImputation(Imputation $imputation): static
+    public function addLeaseTenant(LeaseTenant $leaseTenant): static
     {
-        if (!$this->imputations->contains($imputation)) {
-            $this->imputations->add($imputation);
-            $imputation->setLease($this);
+        if (!$this->leaseTenants->contains($leaseTenant)) {
+            $this->leaseTenants->add($leaseTenant);
+            $leaseTenant->setLease($this);
         }
         return $this;
     }
 
-    public function removeImputation(Imputation $imputation): static
+    public function removeLeaseTenant(LeaseTenant $leaseTenant): static
     {
-        if ($this->imputations->removeElement($imputation)) {
-            if ($imputation->getLease() === $this) {
-                $imputation->setLease(null);
+        if ($this->leaseTenants->removeElement($leaseTenant)) {
+            if ($leaseTenant->getLease() === $this) {
+                $leaseTenant->setLease(null);
             }
         }
         return $this;
     }
+
+    /**
+     * Retourne tous les locataires du bail
+     * @return Collection<int, Tenant>
+     */
+    #[Groups(['lease:read', 'lease:write', 'housing:read'])] // ← Ajouté 'housing:read'
+
+    public function getTenants(): Collection
+    {
+        return $this->leaseTenants->map(fn(LeaseTenant $lt) => $lt->getTenant());
+    }
+
+    public function __toString(): string
+    {
+        return sprintf(
+            'Bail #%d - %s',
+            $this->id ?? 0,
+            $this->housing?->getTitle() ?? 'Sans logement'
+        );
+    }
+
+    public function getUser(): ?User
+    {
+        return $this->user;
+    }
+
+    public function setUser(?User $user): static
+    {
+        $this->user = $user;
+
+        return $this;
+    }
+
+
+    
+
 }

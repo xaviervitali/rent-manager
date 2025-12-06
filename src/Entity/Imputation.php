@@ -2,76 +2,74 @@
 
 namespace App\Entity;
 
+use ApiPlatform\Metadata\ApiResource;
 use App\Repository\ImputationRepository;
-use Doctrine\Common\Collections\ArrayCollection;
-use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
-use ApiPlatform\Metadata\ApiResource;
+use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: ImputationRepository::class)]
 #[ORM\HasLifecycleCallbacks]
-#[ApiResource]
+#[ApiResource(
+    normalizationContext: ['groups' => ['imputation:read']],
+    denormalizationContext: ['groups' => ['imputation:write']]
+)]
 class Imputation
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[Groups(['imputation:read'])]
     private ?int $id = null;
 
-    #[ORM\ManyToOne(inversedBy: 'imputations')]
+    #[ORM\ManyToOne(targetEntity: Housing::class)]
     #[ORM\JoinColumn(nullable: false)]
-    private ?Lease $lease = null;
+    #[Groups(['imputation:read', 'imputation:write'])]
+    private ?Housing $housing = null;
 
-    #[ORM\Column(length: 100)]
-    private ?string $type = null; // 'rent', 'charges', 'electricity', 'internet', 'insurance', etc.
+    #[ORM\ManyToOne(targetEntity: ChargeType::class, inversedBy: 'imputations')]
+    #[ORM\JoinColumn(nullable: false)]
+    #[Groups(['imputation:read', 'imputation:write'])]
+    private ?ChargeType $type = null;
 
     #[ORM\Column(type: Types::DECIMAL, precision: 10, scale: 2)]
+    #[Groups(['imputation:read', 'imputation:write'])]
     private ?string $amount = null;
 
     #[ORM\Column(type: Types::DATE_IMMUTABLE)]
-    private ?\DateTimeImmutable $startDate = null;
+    #[Groups(['imputation:read', 'imputation:write'])]
+    private ?\DateTimeImmutable $periodStart = null;
 
-    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
-    private ?\DateTimeImmutable $endDate = null;
+    #[ORM\Column(type: Types::DATE_IMMUTABLE)]
+    #[Groups(['imputation:read', 'imputation:write'])]
+    private ?\DateTimeImmutable $periodEnd = null;
 
-    #[ORM\Column(length: 50)]
-    private ?string $periodicity = null; // 'monthly', 'quarterly', 'yearly', 'one_time'
-
-    #[ORM\Column(length: 50)]
-    private ?string $status = null; // 'active', 'inactive'
+    #[ORM\Column(length: 255, nullable: true)]
+    #[Groups(['imputation:read', 'imputation:write'])]
+    private ?string $invoiceFile = null; // Chemin vers la facture PDF
 
     #[ORM\Column(type: Types::TEXT, nullable: true)]
+    #[Groups(['imputation:read', 'imputation:write'])]
     private ?string $note = null;
 
     #[ORM\Column]
+    #[Groups(['imputation:read'])]
     private ?\DateTimeImmutable $createdAt = null;
 
     #[ORM\Column]
+    #[Groups(['imputation:read'])]
     private ?\DateTimeImmutable $updatedAt = null;
 
-    #[ORM\PrePersist]
-    public function setCreatedAtValue(): void
+    public function __construct()
     {
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
     }
 
     #[ORM\PreUpdate]
-    public function setUpdatedAtValue(): void
+    public function preUpdate(): void
     {
         $this->updatedAt = new \DateTimeImmutable();
-    }
-    /**
-     * @var Collection<int, Quittance>
-     */
-    #[ORM\OneToMany(targetEntity: Quittance::class, mappedBy: 'imputation', orphanRemoval: true)]
-    private Collection $quittances;
-
-    public function __construct()
-    {
-        $this->status = 'active';
-        $this->quittances = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -79,23 +77,23 @@ class Imputation
         return $this->id;
     }
 
-    public function getLease(): ?Lease
+    public function getHousing(): ?Housing
     {
-        return $this->lease;
+        return $this->housing;
     }
 
-    public function setLease(?Lease $lease): static
+    public function setHousing(?Housing $housing): static
     {
-        $this->lease = $lease;
+        $this->housing = $housing;
         return $this;
     }
 
-    public function getType(): ?string
+    public function getType(): ?ChargeType
     {
         return $this->type;
     }
 
-    public function setType(string $type): static
+    public function setType(?ChargeType $type): static
     {
         $this->type = $type;
         return $this;
@@ -112,47 +110,36 @@ class Imputation
         return $this;
     }
 
-    public function getStartDate(): ?\DateTimeImmutable
+    public function getPeriodStart(): ?\DateTimeImmutable
     {
-        return $this->startDate;
+        return $this->periodStart;
     }
 
-    public function setStartDate(\DateTimeImmutable $startDate): static
+    public function setPeriodStart(\DateTimeImmutable $periodStart): static
     {
-        $this->startDate = $startDate;
+        $this->periodStart = $periodStart;
         return $this;
     }
 
-    public function getEndDate(): ?\DateTimeImmutable
+    public function getPeriodEnd(): ?\DateTimeImmutable
     {
-        return $this->endDate;
+        return $this->periodEnd;
     }
 
-    public function setEndDate(?\DateTimeImmutable $endDate): static
+    public function setPeriodEnd(\DateTimeImmutable $periodEnd): static
     {
-        $this->endDate = $endDate;
+        $this->periodEnd = $periodEnd;
         return $this;
     }
 
-    public function getPeriodicity(): ?string
+    public function getInvoiceFile(): ?string
     {
-        return $this->periodicity;
+        return $this->invoiceFile;
     }
 
-    public function setPeriodicity(string $periodicity): static
+    public function setInvoiceFile(?string $invoiceFile): static
     {
-        $this->periodicity = $periodicity;
-        return $this;
-    }
-
-    public function getStatus(): ?string
-    {
-        return $this->status;
-    }
-
-    public function setStatus(string $status): static
-    {
-        $this->status = $status;
+        $this->invoiceFile = $invoiceFile;
         return $this;
     }
 
@@ -189,28 +176,12 @@ class Imputation
         return $this;
     }
 
-    // Et les méthodes
-    public function getQuittances(): Collection
+    public function __toString(): string
     {
-        return $this->quittances;
-    }
-
-    public function addQuittance(Quittance $quittance): static
-    {
-        if (!$this->quittances->contains($quittance)) {
-            $this->quittances->add($quittance);
-            $quittance->setImputation($this);
-        }
-        return $this;
-    }
-
-    public function removeQuittance(Quittance $quittance): static
-    {
-        if ($this->quittances->removeElement($quittance)) {
-            if ($quittance->getImputation() === $this) {
-                $quittance->setImputation(null);
-            }
-        }
-        return $this;
+        return sprintf(
+            '%s - %s €',
+            $this->type?->getLabel() ?? 'Sans type',
+            $this->amount ?? '0'
+        );
     }
 }

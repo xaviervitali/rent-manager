@@ -82,4 +82,27 @@ abstract class AbstractFixture extends Fixture
     {
         // À surcharger dans les fixtures enfants si nécessaire
     }
+
+    /**
+     * Retourne toutes les références créées pour une classe donnée
+     *
+     * @param string $classname
+     * @return array<object>
+     */
+    protected function getAllReferences(string $classname): array
+    {
+        $count = $this->referenceCounts[$classname] ?? 0;
+        $refs = [];
+
+        for ($i = 0; $i < $count; $i++) {
+            $referenceName = $classname . '_' . $i;
+
+            // Ta méthode getReference() demande 2 arguments
+            $refs[] = $this->getReference($referenceName, $classname);
+        }
+
+        return $refs;
+    }
+
+
 }

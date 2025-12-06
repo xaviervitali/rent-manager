@@ -4,10 +4,9 @@ namespace App\DataFixtures;
 
 use App\Entity\User;
 use App\Entity\Housing;
-use App\Entity\Tenant;
 use App\Entity\Lease;
-use App\Entity\Imputation;
-use App\Entity\Quittance;
+use App\Entity\LeaseTenant;
+use App\Entity\Tenant;
 use Doctrine\Persistence\ObjectManager;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
@@ -20,142 +19,188 @@ class AppFixtures extends AbstractFixture
 
     protected function loadData(ObjectManager $manager): void
     {
+        echo "🚀 Chargement des fixtures...\n\n";
+
         // 1. USERS
-        $this->createMany(User::class, 3, function (User $user, int $i) {
-            $user->setEmail($this->faker->email());
-            $user->setPassword($this->passwordHasher->hashPassword($user, 'password123'));
-            $user->setFirstname($this->faker->firstName());
-            $user->setLastname($this->faker->lastName());
-            $user->setPhone($this->faker->phoneNumber());
-            $user->setRoles(['ROLE_USER']);
-            $user->setCreatedAt(new \DateTimeImmutable());
-            $user->setUpdatedAt(new \DateTimeImmutable());
+        echo "📝 Création des users...\n";
+        $this->createMany(User::class, 10, function (User $user, $i) {
+            $user
+                ->setEmail("user$i@gmail.com")
+                ->setFirstname($this->faker->firstName())      // ⚠️ firstname (minuscule)
+                ->setLastname($this->faker->lastName())        // ⚠️ lastname (minuscule)
+                ->setCreatedAt(\DateTimeImmutable::createFromMutable($this->faker->dateTimeBetween("-1 year")))
+                ->setPassword($this->passwordHasher->hashPassword($user, 'password123'))
+                ->setUpdatedAt(\DateTimeImmutable::createFromMutable($this->faker->dateTimeBetween("-1 year")))
+                ->setPhone($this->faker->phoneNumber());
         });
 
-        // 2. HOUSINGS
-        $this->createMany(Housing::class, 10, function (Housing $housing, int $i) {
-            $housing->setTitle($this->faker->words(3, true));
-            $housing->setCity($this->faker->city());
-            $housing->setCityCode($this->faker->postcode());
-            $housing->setAddress($this->faker->streetAddress());
-            $housing->setBuilding($this->faker->optional()->word());
-            $housing->setApartmentNumber($this->faker->optional()->numerify('##'));
-            $housing->setNote($this->faker->optional()->sentence());
-            $housing->setUser($this->getRandomReference(User::class));
-            $housing->setCreatedAt(new \DateTimeImmutable());
-            $housing->setUpdatedAt(new \DateTimeImmutable());
+        // 2. TENANTS
+        echo "📝 Création des tenants...\n";
+        $this->createMany(Tenant::class, 25, function ($tenant) {
+            $tenant
+                ->setUser($this->getRandomReference(User::class))
+                ->setCreatedAt(\DateTimeImmutable::createFromMutable($this->faker->dateTimeBetween("-1 year")))
+                ->setUpdatedAt(\DateTimeImmutable::createFromMutable($this->faker->dateTimeBetween("-1 year")))
+                ->setEmail($this->faker->email())
+                ->setFirstname($this->faker->firstName())      // ⚠️ firstname (minuscule)
+                ->setLastname($this->faker->lastName())        // ⚠️ lastname (minuscule)
+                ->setPhone($this->faker->phoneNumber());
+                // ⚠️ Supprimé le doublon ->setUser()
         });
 
-        // 3. TENANTS
-        $this->createMany(Tenant::class, 15, function (Tenant $tenant, int $i) {
-            $tenant->setFirstname($this->faker->firstName());
-            $tenant->setLastname($this->faker->lastName());
-            $tenant->setEmail($this->faker->email());
-            $tenant->setPhone($this->faker->phoneNumber());
-            $tenant->setCreatedAt(new \DateTimeImmutable());
-            $tenant->setUpdatedAt(new \DateTimeImmutable());
+        // 3. HOUSINGS
+        echo "📝 Création des logements...\n";
+        $this->createMany(Housing::class, 20, function ($housing) {
+            $housing
+                ->setCreatedAt(\DateTimeImmutable::createFromMutable($this->faker->dateTimeBetween("-1 year")))
+                ->setUpdatedAt(\DateTimeImmutable::createFromMutable($this->faker->dateTimeBetween("-1 year")))
+                ->setTitle($this->faker->catchPhrase())
+                ->setCity($this->faker->city())
+                ->setCityCode($this->faker->postcode())
+                ->setAddress($this->faker->streetAddress())
+                ->setUser($this->getRandomReference(User::class))
+                ->setNote($this->faker->paragraph());
         });
+
+        // ⚠️ Flush pour avoir les housings en base
+        $manager->flush();
 
         // 4. LEASES
-        $this->createMany(Lease::class, 12, function (Lease $lease, int $i) {
-            $lease->setHousing($this->getRandomReference(Housing::class));
+        echo "📝 Création des baux...\n";
+        $housings = $this->getAllReferences(Housing::class);
+        $tenants = $this->getAllReferences(Tenant::class);
 
-            // Ajouter 1 à 2 locataires (pour gérer les colocations)
-            $nbTenants = $this->faker->numberBetween(1, 2);
-            for ($j = 0; $j < $nbTenants; $j++) {
-                $tenant = $this->getRandomReference(Tenant::class);
-                if (!$lease->getTenants()->contains($tenant)) {
-                    $lease->addTenant($tenant);
+        foreach ($housings as $housing) {
+            if (!$this->faker->boolean(70)) { // 70% de chance d'avoir un lease
+                continue;
+            }
+
+            $user = $housing->getUser();
+            $startDate = \DateTimeImmutable::createFromMutable($this->faker->dateTimeBetween("-2 years", "-6 months"));
+            
+            $lease = new Lease();
+            $lease
+                ->setUser($user)
+                ->setHousing($housing)
+                ->setCreatedAt($startDate)
+                ->setUpdatedAt(\DateTimeImmutable::createFromMutable($this->faker->dateTimeBetween("-1 year")))
+                ->setStartDate($startDate)
+                ->setNote($this->faker->paragraph());
+
+            // 30% de chance d'avoir une date de fin
+            if ($this->faker->boolean(30)) {
+                $endDate = \DateTimeImmutable::createFromMutable(
+                    $this->faker->dateTimeBetween($startDate->format('Y-m-d'), 'now')
+                );
+                $lease->setEndDate($endDate);
+            }
+
+            $manager->persist($lease); // ⚠️ Il faut persister le lease !
+        }
+
+        $manager->flush();
+        $manager->clear(); // Clear pour forcer le rechargement
+
+        // 5. LEASE_TENANTS
+        echo "\n📝 Création des relations lease-tenant...\n";
+        
+        $leases = $manager->getRepository(Lease::class)->findAll(); // ⚠️ Recharger depuis la DB
+        $tenants = $manager->getRepository(Tenant::class)->findAll(); // ⚠️ Recharger depuis la DB
+        
+        $existingCombinations = []; // ⚠️ Initialiser la variable
+        $created = 0;
+        $skipped = 0;
+
+        foreach ($leases as $lease) {
+            $user = $lease->getUser();
+            
+            $userTenants = array_filter($tenants, function ($tenant) use ($user) {
+                return $tenant->getUser() === $user;
+            });
+
+            if (empty($userTenants)) {
+                $skipped++;
+                continue;
+            }
+            
+            $userTenants = array_values($userTenants);
+            shuffle($userTenants); // ⚠️ Mélanger pour plus de variété
+
+            // Nombre de tenants à assigner (1 à 3, mais pas plus que disponible)
+            $nbTenantsForLease = rand(1, min(3, count($userTenants)));
+            
+            // Générer les pourcentages
+            $percentages = $this->generatePercentages($nbTenantsForLease);
+
+            for ($i = 0; $i < $nbTenantsForLease; $i++) {
+                $tenant = $userTenants[$i];
+
+                // Vérifier l'unicité
+                $key = sprintf('%d-%d', $lease->getId(), $tenant->getId());
+
+                if (isset($existingCombinations[$key])) {
+                    continue;
                 }
+
+                $existingCombinations[$key] = true;
+
+                $leaseTenant = new LeaseTenant();
+                $leaseTenant->setLease($lease);
+                $leaseTenant->setTenant($tenant);
+                $leaseTenant->setPercentage($percentages[$i]); // ⚠️ Ajout du percentage
+                $leaseTenant->setCreatedAt($lease->getStartDate());
+
+                if ($lease->getEndDate()) {
+                    $leaseTenant->setUpdatedAt($lease->getEndDate());
+                } else {
+                    $leaseTenant->setUpdatedAt(new \DateTimeImmutable());
+                }
+
+                $manager->persist($leaseTenant);
+                $created++;
+
+                // ⚠️ Correction de la syntaxe (enlever le "}" en trop)
+                echo "  ✓ LeaseTenant #{$created} : Lease #{$lease->getId()} (User: {$user->getEmail()}) + Tenant #{$tenant->getId()} ({$tenant->getFirstname()} {$tenant->getLastname()}) - {$percentages[$i]}%\n";
             }
+        }
 
-            $startDate = $this->faker->dateTimeBetween('-2 years', '-1 month');
-            $lease->setStartDate(\DateTimeImmutable::createFromMutable($startDate));
+        $manager->flush();
 
-            // 80% de baux actifs, 20% terminés
-            if ($this->faker->boolean(80)) {
-                $lease->setStatus('active');
-            } else {
-                $lease->setStatus('terminated');
-                $endDate = $this->faker->dateTimeBetween($startDate, 'now');
-                $lease->setEndDate(\DateTimeImmutable::createFromMutable($endDate));
-            }
-
-            $lease->setCreatedAt(new \DateTimeImmutable());
-            $lease->setUpdatedAt(new \DateTimeImmutable());
-        });
-
-        // 5. IMPUTATIONS
-        $this->createMany(Imputation::class, 30, function (Imputation $imputation, int $i) {
-            $lease = $this->getRandomReference(Lease::class);
-            $imputation->setLease($lease);
-
-            // Types d'imputations possibles
-            $types = ['rent', 'charges', 'electricity', 'internet', 'insurance'];
-            $type = $this->faker->randomElement($types);
-            $imputation->setType($type);
-
-            // Montants selon le type
-            $amounts = [
-                'rent' => $this->faker->randomFloat(2, 500, 2000),
-                'charges' => $this->faker->randomFloat(2, 50, 200),
-                'electricity' => $this->faker->randomFloat(2, 30, 100),
-                'internet' => $this->faker->randomFloat(2, 20, 50),
-                'insurance' => $this->faker->randomFloat(2, 10, 30),
-            ];
-            $imputation->setAmount((string) $amounts[$type]);
-
-            $imputation->setStartDate($lease->getStartDate());
-
-            // Si le bail est terminé, l'imputation aussi
-            if ($lease->getStatus() === 'terminated' && $lease->getEndDate()) {
-                $imputation->setEndDate($lease->getEndDate());
-                $imputation->setStatus('inactive');
-            } else {
-                $imputation->setStatus('active');
-            }
-
-            // Périodicité
-            $periodicities = ['monthly', 'quarterly', 'yearly', 'one_time'];
-            $imputation->setPeriodicity($this->faker->randomElement($periodicities));
-
-            $imputation->setNote($this->faker->optional()->sentence());
-            $imputation->setCreatedAt(new \DateTimeImmutable());
-            $imputation->setUpdatedAt(new \DateTimeImmutable());
-        });
-
-        // 6. QUITTANCES
-        $this->createMany(Quittance::class, 50, function (Quittance $quittance, int $i) {
-            $imputation = $this->getRandomReference(Imputation::class);
-            $quittance->setImputation($imputation);
-
-            // Numéro unique
-            $quittance->setNumber('Q-' . date('Y') . '-' . str_pad($i + 1, 4, '0', STR_PAD_LEFT));
-
-            $quittance->setAmount($imputation->getAmount());
-
-            // Date de paiement entre la date de début du bail et maintenant
-            $startDate = $imputation->getStartDate()->format('Y-m-d'); // Conversion en string
-            $endDate = $imputation->getEndDate() ? $imputation->getEndDate()->format('Y-m-d') : 'now';
-
-            $paymentDate = $this->faker->dateTimeBetween($startDate, $endDate);
-            $quittance->setPaymentDate(\DateTimeImmutable::createFromMutable($paymentDate));
-
-            // Période concernée (mois du paiement)
-            $periodStart = new \DateTimeImmutable($paymentDate->format('Y-m-01'));
-            $periodEnd = new \DateTimeImmutable($paymentDate->format('Y-m-t'));
-            $quittance->setPeriodStart($periodStart);
-            $quittance->setPeriodEnd($periodEnd);
-
-            // Moyen de paiement
-            $methods = ['bank_transfer', 'check', 'cash', 'card'];
-            $quittance->setPaymentMethod($this->faker->randomElement($methods));
-
-            $quittance->setReference($this->faker->bothify('??-########'));
-            $quittance->setNote($this->faker->optional()->sentence());
-            $quittance->setCreatedAt(new \DateTimeImmutable());
-            $quittance->setUpdatedAt(new \DateTimeImmutable());
-        });
+        echo "\n✅ {$created} LeaseTenant créés avec succès\n";
+        if ($skipped > 0) {
+            echo "⚠️  {$skipped} leases ignorés (pas de tenant pour le user)\n";
+        }
+        echo "🎉 Fixtures chargées !\n";
     }
 
+    /**
+     * Génère des pourcentages qui totalisent 100%
+     */
+    private function generatePercentages(int $count): array
+    {
+        if ($count === 1) {
+            return [100];
+        }
+        
+        if ($count === 2) {
+            $options = [[50, 50], [60, 40], [70, 30]];
+            return $options[array_rand($options)];
+        }
+        
+        if ($count === 3) {
+            $options = [
+                [34, 33, 33],
+                [40, 30, 30],
+                [50, 25, 25],
+            ];
+            return $options[array_rand($options)];
+        }
+        
+        // Par défaut, répartition égale
+        $equal = floor(100 / $count);
+        $percentages = array_fill(0, $count, $equal);
+        $percentages[0] += 100 - array_sum($percentages);
+        
+        return $percentages;
+    }
 }

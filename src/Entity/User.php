@@ -57,6 +57,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\OneToMany(targetEntity: Housing::class, mappedBy: 'user', orphanRemoval: true)]
     private Collection $housings;
 
+    /**
+     * @var Collection<int, Tenant>
+     */
+    #[ORM\OneToMany(targetEntity: Tenant::class, mappedBy: 'user')]
+    private Collection $tenants;
+
+    /**
+     * @var Collection<int, Lease>
+     */
+    #[ORM\OneToMany(targetEntity: Lease::class, mappedBy: 'user')]
+    private Collection $leases;
+
         #[ORM\PrePersist]
     public function setCreatedAtValue(): void
     {
@@ -72,6 +84,8 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function __construct()
     {
         $this->housings = new ArrayCollection();
+        $this->tenants = new ArrayCollection();
+        $this->leases = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -244,4 +258,65 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
         return $this;
     }
+
+    /**
+     * @return Collection<int, Tenant>
+     */
+    public function getTenants(): Collection
+    {
+        return $this->tenants;
+    }
+
+    public function addTenant(Tenant $tenant): static
+    {
+        if (!$this->tenants->contains($tenant)) {
+            $this->tenants->add($tenant);
+            $tenant->setUser($this);
+        }
+
+        return $this;
+    }
+
+    public function removeTenant(Tenant $tenant): static
+    {
+        if ($this->tenants->removeElement($tenant)) {
+            // set the owning side to null (unless already changed)
+            if ($tenant->getUser() === $this) {
+                $tenant->setUser(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Lease>
+     */
+    public function getLeases(): Collection
+    {
+        return $this->leases;
+    }
+
+    public function addLease(Lease $lease): static
+    {
+        if (!$this->leases->contains($lease)) {
+            $this->leases->add($lease);
+            $lease->setUser($this);
+        }
+
+        return $this;
+    }
+
+    public function removeLease(Lease $lease): static
+    {
+        if ($this->leases->removeElement($lease)) {
+            // set the owning side to null (unless already changed)
+            if ($lease->getUser() === $this) {
+                $lease->setUser(null);
+            }
+        }
+
+        return $this;
+    }
+
 }

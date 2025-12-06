@@ -13,6 +13,20 @@ security:
             pattern: ^/(_(profiler|wdt)|css|images|js)/
             security: false
 
+        # OAuth start (pas d'authentification requise)
+        google_connect:
+            pattern: ^/connect/google$
+            security: false
+
+        # 🔥 Firewall PRINCIPAL pour Google OAuth
+        google_oauth:
+            pattern: ^/(connect/google/check|auth/google)
+            stateless: false
+            custom_authenticators:
+                - App\Security\GoogleAuthenticator
+            provider: app_user_provider
+
+        # Login JWT classique
         login:
             pattern: ^/api/login
             stateless: true
@@ -21,6 +35,7 @@ security:
                 success_handler: lexik_jwt_authentication.handler.authentication_success
                 failure_handler: lexik_jwt_authentication.handler.authentication_failure
 
+        # API protégée par JWT
         api:
             pattern: ^/api
             stateless: true
@@ -31,5 +46,8 @@ security:
             provider: app_user_provider
 
     access_control:
-        - { path: ^/api/login, roles: PUBLIC_ACCESS }
-        - { path: ^/api,       roles: IS_AUTHENTICATED_FULLY }
+        # - { path: ^/connect/google$, roles: PUBLIC_ACCESS }
+        # - { path: ^/connect/google/check, roles: PUBLIC_ACCESS }
+        # - { path: ^/auth/google, roles: PUBLIC_ACCESS }
+        # - { path: ^/api/login, roles: PUBLIC_ACCESS }
+        # - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }

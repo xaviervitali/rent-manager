@@ -2,64 +2,87 @@
 
 namespace App\Entity;
 
+use ApiPlatform\Metadata\ApiResource;
 use App\Repository\TenantRepository;
+use App\State\TenantProcessor;
+use App\State\TenantStateProvider;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
-use ApiPlatform\Metadata\ApiResource;
+use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: TenantRepository::class)]
 #[ORM\HasLifecycleCallbacks]
-#[ApiResource]
+#[ApiResource(
+    normalizationContext: ['groups' => ['tenant:read']],
+    denormalizationContext: ['groups' => ['tenant:write']],
+    processor: TenantProcessor::class,
+        provider: TenantStateProvider::class  // ← Ajouter
+)]
 class Tenant
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[Groups(['tenant:read', 'lease:read', 'housing:read', 'lease_tenant:read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
+    #[Groups(['tenant:read', 'tenant:write', 'lease:read', 'housing:read'])]
     private ?string $firstname = null;
 
     #[ORM\Column(length: 255)]
+    #[Groups(['tenant:read', 'tenant:write', 'lease:read', 'housing:read'])]
     private ?string $lastname = null;
 
-    #[ORM\Column(length: 255, nullable: true)]
+    #[ORM\Column(length: 255, nullable: true, unique: true)] // ✅ Ajouter unique: true
+    #[Groups(['tenant:read', 'tenant:write'])]
     private ?string $email = null;
 
-    #[ORM\Column(length: 255, nullable: true)]
+    #[ORM\Column(length: 20, nullable: true)]
+    #[Groups(['tenant:read', 'tenant:write'])]
     private ?string $phone = null;
 
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    #[Groups(['tenant:read', 'tenant:write'])]
+    private ?string $note = null;
+
     #[ORM\Column]
+    #[Groups(['tenant:read'])]
     private ?\DateTimeImmutable $createdAt = null;
 
     #[ORM\Column]
+    #[Groups(['tenant:read'])]
     private ?\DateTimeImmutable $updatedAt = null;
-    #[ORM\PrePersist]
-    public function setCreatedAtValue(): void
+
+    // ✅ Relation avec LeaseTenant (pas directement avec Lease)
+    #[ORM\OneToMany(targetEntity: LeaseTenant::class, mappedBy: 'tenant', cascade: ['persist', 'remove'])]
+    #[Groups(['tenant:read'])]
+    private Collection $leaseTenants;
+
+
+    #[Groups(['tenant:write'])]
+    private ?int $newHousingId = null;
+
+    #[Groups(['tenant:write'])]
+    private ?string $moveDate = null;
+
+    #[ORM\ManyToOne(inversedBy: 'tenants')]
+    private ?User $user = null;
+    public function __construct()
     {
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
+        $this->leaseTenants = new ArrayCollection(); // ✅ Initialiser la collection
     }
 
     #[ORM\PreUpdate]
-    public function setUpdatedAtValue(): void
+    public function preUpdate(): void
     {
         $this->updatedAt = new \DateTimeImmutable();
     }
 
-    /**
-     * @var Collection<int, Lease>
-     */
-    #[ORM\ManyToMany(targetEntity: Lease::class, mappedBy: 'tenants')]
-    private Collection $leases;
-
-    
-
-    public function __construct()
-    {
-        $this->leases = new ArrayCollection();
-    }
     public function getId(): ?int
     {
         return $this->id;
@@ -73,7 +96,6 @@ class Tenant
     public function setFirstname(string $firstname): static
     {
         $this->firstname = $firstname;
-
         return $this;
     }
 
@@ -85,7 +107,6 @@ class Tenant
     public function setLastname(string $lastname): static
     {
         $this->lastname = $lastname;
-
         return $this;
     }
 
@@ -94,10 +115,9 @@ class Tenant
         return $this->email;
     }
 
-    public function setEmail(string $email): static
+    public function setEmail(?string $email): static
     {
         $this->email = $email;
-
         return $this;
     }
 
@@ -106,10 +126,20 @@ class Tenant
         return $this->phone;
     }
 
-    public function setPhone(string $phone): static
+    public function setPhone(?string $phone): static
     {
         $this->phone = $phone;
+        return $this;
+    }
 
+    public function getNote(): ?string
+    {
+        return $this->note;
+    }
+
+    public function setNote(?string $note): static
+    {
+        $this->note = $note;
         return $this;
     }
 
@@ -121,7 +151,6 @@ class Tenant
     public function setCreatedAt(\DateTimeImmutable $createdAt): static
     {
         $this->createdAt = $createdAt;
-
         return $this;
     }
 
@@ -133,34 +162,145 @@ class Tenant
     public function setUpdatedAt(\DateTimeImmutable $updatedAt): static
     {
         $this->updatedAt = $updatedAt;
+        return $this;
+    }
+
+    // ✅ Méthodes pour gérer la collection de leaseTenants
+    /**
+     * @return Collection<int, LeaseTenant>
+     */
+    public function getLeaseTenants(): Collection
+    {
+        return $this->leaseTenants;
+    }
+
+    public function addLeaseTenant(LeaseTenant $leaseTenant): static
+    {
+        if (!$this->leaseTenants->contains($leaseTenant)) {
+            $this->leaseTenants->add($leaseTenant);
+            $leaseTenant->setTenant($this);
+        }
 
         return $this;
     }
+
+    public function removeLeaseTenant(LeaseTenant $leaseTenant): static
+    {
+        if ($this->leaseTenants->removeElement($leaseTenant)) {
+            if ($leaseTenant->getTenant() === $this) {
+                $leaseTenant->setTenant(null);
+            }
+        }
+
+        return $this;
+    }
+
+    public function __toString(): string
+    {
+        return sprintf('%s %s', $this->firstname, $this->lastname);
+    }
+
+    // ... (vos propriétés existantes)
 
     /**
-     * @return Collection<int, Lease>
+     * ✅ Retourne le bail actif s'il existe
      */
-    public function getLeases(): Collection
+    public function getActiveLease(): ?Lease
     {
-        return $this->leases;
+        foreach ($this->leaseTenants as $leaseTenant) {
+            $lease = $leaseTenant->getLease();
+            if ($lease && empty($lease->getEndDate())) {
+                return $lease;
+            }
+        }
+        return null;
     }
 
-    public function addLease(Lease $lease): static
+
+
+
+
+    /**
+     * Retourne l'historique complet des baux avec détails
+     */
+    #[Groups(['tenant:read'])]
+    public function getLeaseHistory(): array
     {
-        if (!$this->leases->contains($lease)) {
-            $this->leases->add($lease);
-            $lease->addTenant($this);
+        $history = [];
+
+        foreach ($this->leaseTenants as $leaseTenant) {
+            $lease = $leaseTenant->getLease();
+            if (!$lease) {
+                continue;
+            }
+
+            $housing = $lease->getHousing();
+
+            $history[] = [
+                // Infos LeaseTenant (pour pouvoir le modifier/supprimer)
+                'leaseTenantId' => $leaseTenant->getId(),
+                'percentage' => $leaseTenant->getPercentage(),
+                'isActive' => $leaseTenant->isActive(),
+
+                // Infos Lease
+                'lease' => [
+                    'id' => $lease->getId(),
+                    'startDate' => $lease->getStartDate()?->format('Y-m-d'),
+                    'endDate' => $lease->getEndDate()?->format('Y-m-d'),
+                ],
+
+                // Infos Housing
+                'housing' => $housing ? [
+                    'id' => $housing->getId(),
+                    'title' => $housing->getTitle(),
+                    'address' => $housing->getAddress(),
+                    'city' => $housing->getCity(),
+                    'cityCode' => $housing->getCityCode(),
+                    'building' => $housing->getBuilding(),
+                    'apartmentNumber' => $housing->getApartmentNumber(),
+                ] : null,
+            ];
         }
+
+        // Trier par date de début décroissante (plus récent en premier)
+        usort($history, function ($a, $b) {
+            return ($b['lease']['startDate'] ?? '') <=> ($a['lease']['startDate'] ?? '');
+        });
+
+        return $history;
+    }
+
+    public function getNewHousingId(): ?int
+    {
+        return $this->newHousingId;
+    }
+
+    public function setNewHousingId(?int $newHousingId): static
+    {
+        $this->newHousingId = $newHousingId;
         return $this;
     }
 
-    public function removeLease(Lease $lease): static
+    public function getMoveDate(): ?string
     {
-        if ($this->leases->removeElement($lease)) {
-            $lease->removeTenant($this);
-        }
+        return $this->moveDate;
+    }
+
+    public function setMoveDate(?string $moveDate): static
+    {
+        $this->moveDate = $moveDate;
         return $this;
     }
 
-    
+    public function getUser(): ?User
+    {
+        return $this->user;
+    }
+
+    public function setUser(?User $user): static
+    {
+        $this->user = $user;
+
+        return $this;
+    }
 }
