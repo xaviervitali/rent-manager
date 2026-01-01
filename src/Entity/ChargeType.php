@@ -36,6 +36,14 @@ class ChargeType
     #[Groups(['charge_type:read', 'charge_type:write'])]
     private bool $isRentComponent = false; // Apparaît sur la quittance ?
 
+    #[ORM\Column(length: 50)]
+    #[Groups(['charge_type:read', 'charge_type:write', 'imputation:read'])]
+    private string $periodicity = 'monthly'; // monthly, quarterly, biannual, annual, one_time
+
+    #[ORM\Column(length: 20)]
+    #[Groups(['charge_type:read', 'charge_type:write', 'imputation:read',])]
+    private string $direction = 'credit'; // credit (recette) ou debit (dépense)
+
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     #[Groups(['charge_type:read', 'charge_type:write'])]
     private ?string $comment = null;
@@ -54,11 +62,24 @@ class ChargeType
     #[ORM\OneToMany(targetEntity: Imputation::class, mappedBy: 'type')]
     private Collection $imputations;
 
+    // Constantes pour les périodicités
+    public const PERIODICITY_MONTHLY = 'monthly';        // Mensuel
+    public const PERIODICITY_QUARTERLY = 'quarterly';    // Trimestriel
+    public const PERIODICITY_BIANNUAL = 'biannual';      // Semestriel
+    public const PERIODICITY_ANNUAL = 'annual';          // Annuel
+    public const PERIODICITY_ONE_TIME = 'one_time';      // Ponctuel
+
+    // Constantes pour la direction
+    public const DIRECTION_DEBIT = 'debit';    // Charge (dépense)
+    public const DIRECTION_CREDIT = 'credit';  // Recette (revenu)
+
     public function __construct()
     {
         $this->imputations = new ArrayCollection();
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
+        $this->periodicity = self::PERIODICITY_MONTHLY;
+        $this->direction = self::DIRECTION_CREDIT;
     }
 
     #[ORM\PreUpdate]
@@ -103,6 +124,99 @@ class ChargeType
     {
         $this->isRentComponent = $isRentComponent;
         return $this;
+    }
+
+    public function getIsRecoverable(): bool
+{
+    return $this->isRecoverable;
+}
+
+public function getIsRentComponent(): bool
+{
+    return $this->isRentComponent;
+}
+
+    public function getPeriodicity(): string
+    {
+        return $this->periodicity;
+    }
+
+    public function setPeriodicity(string $periodicity): static
+    {
+        $allowedPeriods = [
+            self::PERIODICITY_MONTHLY,
+            self::PERIODICITY_QUARTERLY,
+            self::PERIODICITY_BIANNUAL,
+            self::PERIODICITY_ANNUAL,
+            self::PERIODICITY_ONE_TIME,
+        ];
+
+        if (!in_array($periodicity, $allowedPeriods, true)) {
+            throw new \InvalidArgumentException(
+                sprintf('Periodicity must be one of: %s', implode(', ', $allowedPeriods))
+            );
+        }
+
+        $this->periodicity = $periodicity;
+        return $this;
+    }
+
+    /**
+     * Retourne le label lisible de la périodicité
+     */
+    #[Groups(['charge_type:read', 'imputation:read'])]
+    public function getPeriodicityLabel(): string
+    {
+        return match($this->periodicity) {
+            self::PERIODICITY_MONTHLY => 'Mensuel',
+            self::PERIODICITY_QUARTERLY => 'Trimestriel',
+            self::PERIODICITY_BIANNUAL => 'Semestriel',
+            self::PERIODICITY_ANNUAL => 'Annuel',
+            self::PERIODICITY_ONE_TIME => 'Ponctuel',
+            default => 'Inconnu',
+        };
+    }
+
+    public function getDirection(): string
+    {
+        return $this->direction;
+    }
+
+    public function setDirection(string $direction): static
+    {
+        $allowedDirections = [self::DIRECTION_DEBIT, self::DIRECTION_CREDIT];
+
+        if (!in_array($direction, $allowedDirections, true)) {
+            throw new \InvalidArgumentException(
+                sprintf('Direction must be one of: %s', implode(', ', $allowedDirections))
+            );
+        }
+
+        $this->direction = $direction;
+        return $this;
+    }
+
+    /**
+     * Retourne le label lisible de la direction
+     */
+    #[Groups(['charge_type:read', 'imputation:read'])]
+    public function getDirectionLabel(): string
+    {
+        return match($this->direction) {
+            self::DIRECTION_DEBIT => 'Débit',
+            self::DIRECTION_CREDIT => 'Crédit',
+            default => 'Inconnu',
+        };
+    }
+
+    public function isDebit(): bool
+    {
+        return $this->direction === self::DIRECTION_DEBIT;
+    }
+
+    public function isCredit(): bool
+    {
+        return $this->direction === self::DIRECTION_CREDIT;
     }
 
     public function getComment(): ?string

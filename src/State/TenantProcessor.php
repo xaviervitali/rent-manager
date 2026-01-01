@@ -10,6 +10,7 @@ use App\Entity\Lease;
 use App\Entity\LeaseTenant;
 use App\Entity\Tenant;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 class TenantProcessor implements ProcessorInterface
@@ -17,13 +18,23 @@ class TenantProcessor implements ProcessorInterface
     public function __construct(
         #[Autowire(service: 'api_platform.doctrine.orm.state.persist_processor')]
         private ProcessorInterface $persistProcessor,
-        private EntityManagerInterface $em
+        private EntityManagerInterface $em,
+        private Security $security
     ) {}
 
     public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = []): mixed
     {
         if (!$data instanceof Tenant) {
             return $this->persistProcessor->process($data, $operation, $uriVariables, $context);
+        }
+
+
+        // ⚡ Assigner automatiquement le user loggé
+        $currentUser = $this->security->getUser();
+        if ($currentUser) {
+            $data->setUser($currentUser);
+        } else {
+            throw new \LogicException('Impossible de récupérer l’utilisateur connecté.');
         }
 
         // Vérifier s'il y a un déménagement demandé

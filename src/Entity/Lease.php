@@ -3,7 +3,14 @@
 namespace App\Entity;
 
 use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Delete;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Post;
+use ApiPlatform\Metadata\Put;
 use App\Repository\LeaseRepository;
+use App\State\LeaseProcessor;
+use App\State\LeaseStateProvider;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
@@ -13,30 +20,37 @@ use Symfony\Component\Serializer\Annotation\Groups;
 #[ORM\Entity(repositoryClass: LeaseRepository::class)]
 #[ORM\HasLifecycleCallbacks]
 #[ApiResource(
+    operations: [
+        new GetCollection(),
+        new Get(),
+        new Post(processor: LeaseProcessor::class),
+        new Put(processor: LeaseProcessor::class),
+        new Delete()
+    ],
     normalizationContext: ['groups' => ['lease:read']],
-    denormalizationContext: ['groups' => ['lease:write']]
+    denormalizationContext: ['groups' => ['lease:write']],
+    provider: LeaseStateProvider::class
 )]
 class Lease
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['lease:read', 'housing:read'])] // ← Ajouté 'housing:read'
+    #[Groups(['lease:read', 'housing:read', 'rent_receipt:read'])]
     private ?int $id = null;
 
     #[ORM\ManyToOne(targetEntity: Housing::class, inversedBy: 'leases')]
     #[ORM\JoinColumn(nullable: false)]
-    #[Groups(['lease:read', 'lease:write'])]
+    #[Groups(['lease:read', 'lease:write', 'rent_receipt:read'])]
     private ?Housing $housing = null;
 
     #[ORM\Column(type: Types::DATE_IMMUTABLE)]
-    #[Groups(['lease:read', 'lease:write', 'housing:read'])] // ← Ajouté 'housing:read'
+    #[Groups(['lease:read', 'lease:write', 'housing:read'])]
     private ?\DateTimeImmutable $startDate = null;
 
     #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
-    #[Groups(['lease:read', 'lease:write', 'housing:read'])] // ← Ajouté 'housing:read'
+    #[Groups(['lease:read', 'lease:write', 'housing:read'])]
     private ?\DateTimeImmutable $endDate = null;
-
 
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     #[Groups(['lease:read', 'lease:write'])]
@@ -44,7 +58,7 @@ class Lease
 
     #[ORM\Column(length: 255, nullable: true)]
     #[Groups(['lease:read', 'lease:write'])]
-    private ?string $contractFile = null; // Chemin vers le PDF du bail
+    private ?string $contractFile = null;
 
     #[ORM\Column]
     #[Groups(['lease:read'])]
@@ -64,6 +78,40 @@ class Lease
     #[ORM\ManyToOne(inversedBy: 'leases')]
     private ?User $user = null;
 
+    // ========================================
+    // Propriétés dynamiques (remplies par LeaseStateProvider)
+    // ========================================
+    
+    /**
+     * Loyer de base (hors charges)
+     */
+    #[Groups(['lease:read', 'housing:read'])]
+    public ?float $currentRent = null;
+
+    /**
+     * Charges récupérables
+     */
+    #[Groups(['lease:read', 'housing:read'])]
+    public ?float $currentCharges = null;
+
+    /**
+     * Total (loyer + charges)
+     */
+    #[Groups(['lease:read', 'housing:read'])]
+    public ?float $currentTotal = null;
+
+    /**
+     * Détails des imputations
+     */
+    #[Groups(['lease:read'])]
+    public ?array $rentDetails = null;
+
+    /**
+     * Somme totale des imputations actives
+     */
+    #[Groups(['lease:read', 'housing:read'])]
+    public ?float $activeImputationsTotal = null;
+
     public function __construct()
     {
         $this->leaseTenants = new ArrayCollection();
@@ -77,7 +125,9 @@ class Lease
         $this->updatedAt = new \DateTimeImmutable();
     }
 
-    // ... getters/setters standards ...
+    // ========================================
+    // Getters / Setters
+    // ========================================
 
     public function getId(): ?int
     {
@@ -116,7 +166,6 @@ class Lease
         $this->endDate = $endDate;
         return $this;
     }
-
 
     public function getNote(): ?string
     {
@@ -193,20 +242,10 @@ class Lease
      * Retourne tous les locataires du bail
      * @return Collection<int, Tenant>
      */
-    #[Groups(['lease:read', 'lease:write', 'housing:read'])] // ← Ajouté 'housing:read'
-
+    #[Groups(['lease:read', 'lease:write', 'housing:read'])]
     public function getTenants(): Collection
     {
         return $this->leaseTenants->map(fn(LeaseTenant $lt) => $lt->getTenant());
-    }
-
-    public function __toString(): string
-    {
-        return sprintf(
-            'Bail #%d - %s',
-            $this->id ?? 0,
-            $this->housing?->getTitle() ?? 'Sans logement'
-        );
     }
 
     public function getUser(): ?User
@@ -217,11 +256,93 @@ class Lease
     public function setUser(?User $user): static
     {
         $this->user = $user;
-
         return $this;
     }
 
+    // ========================================
+    // Méthodes utilitaires
+    // ========================================
 
-    
+    /**
+     * Vérifie si le bail est actif à une date donnée
+     */
+    public function isActiveAt(?\DateTimeImmutable $date = null): bool
+    {
+        $date = $date ?? new \DateTimeImmutable();
+        
+        // Le bail a commencé
+        $hasStarted = $this->startDate <= $date;
+        
+        // Le bail n'est pas terminé OU la date de fin n'est pas encore atteinte
+        $notEnded = $this->endDate === null || $this->endDate >= $date;
+        
+        return $hasStarted && $notEnded;
+    }
 
+    /**
+     * Vérifie si le bail est actuellement actif
+     */
+    #[Groups(['lease:read', 'housing:read'])]
+    public function isActive(): bool
+    {
+        return $this->isActiveAt();
+    }
+
+    /**
+     * Retourne le statut du bail
+     */
+    #[Groups(['lease:read', 'housing:read'])]
+    public function getStatus(): string
+    {
+        if ($this->isActive()) {
+            return 'active';
+        }
+        
+        if ($this->endDate && $this->endDate < new \DateTimeImmutable()) {
+            return 'terminated';
+        }
+        
+        if ($this->startDate > new \DateTimeImmutable()) {
+            return 'future';
+        }
+        
+        return 'unknown';
+    }
+
+    /**
+     * Retourne le label du statut
+     */
+    #[Groups(['lease:read', 'housing:read'])]
+    public function getStatusLabel(): string
+    {
+        return match($this->getStatus()) {
+            'active' => 'Actif',
+            'terminated' => 'Terminé',
+            'future' => 'À venir',
+            default => 'Inconnu',
+        };
+    }
+
+    /**
+     * Retourne la durée du bail en mois
+     */
+    #[Groups(['lease:read'])]
+    public function getDurationInMonths(): ?int
+    {
+        if (!$this->endDate) {
+            return null;
+        }
+
+        $interval = $this->startDate->diff($this->endDate);
+        return ($interval->y * 12) + $interval->m;
+    }
+
+    public function __toString(): string
+    {
+        return sprintf(
+            'Bail #%d - %s',
+            $this->id ?? 0,
+            $this->housing?->getTitle() ?? 'Sans logement'
+        );
+    }
 }

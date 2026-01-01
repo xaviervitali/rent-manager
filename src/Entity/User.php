@@ -69,6 +69,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\OneToMany(targetEntity: Lease::class, mappedBy: 'user')]
     private Collection $leases;
 
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $address = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $city = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $cityCode = null;
+
         #[ORM\PrePersist]
     public function setCreatedAtValue(): void
     {
@@ -315,6 +324,42 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
                 $lease->setUser(null);
             }
         }
+
+        return $this;
+    }
+
+    public function getAddress(): ?string
+    {
+        return $this->address;
+    }
+
+    public function setAddress(?string $address): static
+    {
+        $this->address = $address;
+
+        return $this;
+    }
+
+    public function getCity(): ?string
+    {
+        return $this->city;
+    }
+
+    public function setCity(?string $city): static
+    {
+        $this->city = $city;
+
+        return $this;
+    }
+
+    public function getCityCode(): ?string
+    {
+        return $this->cityCode;
+    }
+
+    public function setCityCode(?string $cityCode): static
+    {
+        $this->cityCode = $cityCode;
 
         return $this;
     }

@@ -18,26 +18,34 @@ class HousingProcessor implements ProcessorInterface
         private ProcessorInterface $persistProcessor,
         private Security $security,
         private HousingRepository $housingRepository
-    ) {}
+    ) {
+    }
 
-    public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = []): Housing
-    {
+    public function process(
+        mixed $data,
+        Operation $operation,
+        array $uriVariables = [],
+        array $context = []
+    ): Housing {
         if (!$data instanceof Housing) {
             return $this->persistProcessor->process($data, $operation, $uriVariables, $context);
         }
 
-        $isUpdate = $data->getId() !== null;
-        $housingId = $data->getId(); // ✅ Sauvegarder l'ID AVANT toute manipulation
+        // ✅ Utilisateur depuis le token (CREATE + UPDATE)
+        $user = $this->security->getUser();
+        if (!$user) {
+            throw new \RuntimeException('User not authenticated');
+        }
 
-        // ✅ UPDATE : Recharger l'entité existante
+        // ✅ Détection UPDATE fiable (API Platform 3)
+        $isUpdate = isset($context['previous_data']);
+        $housingId = $data->getId();
+
+        // ✅ UPDATE : travailler sur l’entité managée
         if ($isUpdate) {
-            $existingHousing = $this->housingRepository->find($housingId);
+            /** @var Housing $existingHousing */
+            $existingHousing = $context['previous_data'];
 
-            if (!$existingHousing) {
-                throw new \RuntimeException('Housing not found');
-            }
-
-            // Mettre à jour uniquement les champs modifiables
             $existingHousing->setTitle($data->getTitle());
             $existingHousing->setAddress($data->getAddress());
             $existingHousing->setCityCode($data->getCityCode());
@@ -47,38 +55,43 @@ class HousingProcessor implements ProcessorInterface
             $existingHousing->setNote($data->getNote());
 
             $data = $existingHousing;
-        } else {
-            // ✅ CRÉATION : Assigner l'utilisateur connecté
-            $data->setUser($this->security->getUser());
         }
 
-        // 🔥 VALIDATION DU DOUBLON
-        $existingCriteria = [
+        // ✅ TOUJOURS forcer le user
+        $data->setUser($user);
+
+        // 🔥 Validation du doublon
+        $criteria = [
             'address' => $data->getAddress(),
             'cityCode' => $data->getCityCode(),
             'city' => $data->getCity(),
-            'user' => $data->getUser(), 
-            'title' => $data->getTitle()
+            'title' => $data->getTitle(),
+            'user' => $user,
         ];
 
         if ($data->getBuilding() !== null) {
-            $existingCriteria['building'] = $data->getBuilding();
+            $criteria['building'] = $data->getBuilding();
         }
+
         if ($data->getApartmentNumber() !== null) {
-            $existingCriteria['apartmentNumber'] = $data->getApartmentNumber();
+            $criteria['apartmentNumber'] = $data->getApartmentNumber();
         }
 
-        $existing = $this->housingRepository->findOneBy($existingCriteria);
+        $existing = $this->housingRepository->findOneBy($criteria);
 
-        if ($existing && $existing->getId() !== $housingId) {
-            throw new UnprocessableEntityHttpException('Vous avez déjà enregistré ce logement.');
+        if ($existing !== null && $existing->getId() !== $data->getId()) {
+            throw new UnprocessableEntityHttpException(
+                'Vous avez déjà enregistré ce logement.'
+            );
         }
 
-        
-        $data->setCreatedAt($existing?->getCreatedAt() ?? new \DateTimeImmutable()); 
+        // 🕒 Dates
+        if (!$isUpdate) {
+            $data->setCreatedAt(new \DateTimeImmutable());
+        }
+
         $data->setUpdatedAt(new \DateTimeImmutable());
 
-        // ✅ Persister l'entité
         return $this->persistProcessor->process($data, $operation, $uriVariables, $context);
     }
 }

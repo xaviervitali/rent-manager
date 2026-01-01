@@ -9,13 +9,14 @@ use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Put;
 use App\Repository\HousingRepository;
+use App\State\HousingProcessor;
+use App\State\HousingStateProvider;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
 use Symfony\Component\Serializer\Annotation\Groups;
-use App\State\HousingProcessor;
 
 #[ORM\Entity(repositoryClass: HousingRepository::class)]
 #[ORM\HasLifecycleCallbacks]
@@ -30,23 +31,24 @@ use App\State\HousingProcessor;
     operations: [
         new GetCollection(),
         new Get(),
-        new Post(processor: HousingProcessor::class),    // ✅ Processor personnalisé
-        new Put(processor: HousingProcessor::class),     // ✅ Processor personnalisé
+        new Post(processor: HousingProcessor::class),
+        new Put(processor: HousingProcessor::class),
         new Delete()
     ],
     normalizationContext: ['groups' => ['housing:read']],
-    denormalizationContext: ['groups' => ['housing:write']]
+    denormalizationContext: ['groups' => ['housing:write']],
+    provider: HousingStateProvider::class
 )]
 class Housing
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['housing:read'])]
+    #[Groups(['housing:read', 'lease:read', 'imputation:read','rent_receipt:read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['housing:read', 'housing:write'])]
+    #[Groups(['housing:read', 'housing:write', 'lease:read', 'imputation:read', 'rent_receipt:read'])]
     private ?string $title = null;
 
     #[ORM\Column(length: 255)]
@@ -93,6 +95,52 @@ class Housing
     #[Groups(['housing:read'])]
     private Collection $leases;
 
+    /**
+     * @var Collection<int, Imputation>
+     */
+    #[ORM\OneToMany(targetEntity: Imputation::class, mappedBy: 'housing')]
+    private Collection $imputations;
+
+    // ========================================
+    // Propriétés dynamiques (remplies par HousingStateProvider)
+    // ========================================
+    
+    /**
+     * Loyer de base (hors charges)
+     */
+    #[Groups(['housing:read'])]
+    public ?float $currentRent = null;
+
+    /**
+     * Charges récupérables
+     */
+    #[Groups(['housing:read'])]
+    public ?float $currentCharges = null;
+
+    /**
+     * Total (loyer + charges)
+     */
+    #[Groups(['housing:read'])]
+    public ?float $currentTotal = null;
+
+    /**
+     * Ventilation complète du loyer
+     */
+    #[Groups(['housing:read'])]
+    public ?array $rentBreakdown = null;
+
+    /**
+     * Indique si le logement a un bail actif
+     */
+    #[Groups(['housing:read'])]
+    public ?bool $hasActiveLease = null;
+
+    /**
+     * Liste des imputations avec leur statut actif (remplie par HousingStateProvider)
+     */
+    #[Groups(['housing:read'])]
+    public ?array $imputationsList = null;
+
     #[ORM\PrePersist]
     public function setCreatedAtValue(): void
     {
@@ -109,6 +157,7 @@ class Housing
     public function __construct()
     {
         $this->leases = new ArrayCollection();
+        $this->imputations = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -253,4 +302,40 @@ class Housing
         return $this;
     }
 
+    /**
+     * @return Collection<int, Imputation>
+     */
+    public function getImputations(): Collection
+    {
+        return $this->imputations;
+    }
+
+    public function addImputation(Imputation $imputation): static
+    {
+        if (!$this->imputations->contains($imputation)) {
+            $this->imputations->add($imputation);
+            $imputation->setHousing($this);
+        }
+        return $this;
+    }
+
+    public function removeImputation(Imputation $imputation): static
+    {
+        if ($this->imputations->removeElement($imputation)) {
+            if ($imputation->getHousing() === $this) {
+                $imputation->setHousing(null);
+            }
+        }
+        return $this;
+    }
+
+    public function getActiveLease(): ?Lease
+{
+    foreach ($this->leases as $lease) {
+        if ($lease->isActive()) { // ou autre logique pour déterminer le bail actif
+            return $lease;
+        }
+    }
+    return null;
+}
 }

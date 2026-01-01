@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use ApiPlatform\Metadata\ApiProperty;
 use ApiPlatform\Metadata\ApiResource;
 use App\Repository\ImputationRepository;
 use Doctrine\DBAL\Types\Types;
@@ -12,8 +13,10 @@ use Symfony\Component\Serializer\Annotation\Groups;
 #[ORM\HasLifecycleCallbacks]
 #[ApiResource(
     normalizationContext: ['groups' => ['imputation:read']],
-    denormalizationContext: ['groups' => ['imputation:write']]
+    denormalizationContext: ['groups' => ['imputation:write']],
+
 )]
+
 class Imputation
 {
     #[ORM\Id]
@@ -22,7 +25,7 @@ class Imputation
     #[Groups(['imputation:read'])]
     private ?int $id = null;
 
-    #[ORM\ManyToOne(targetEntity: Housing::class)]
+    #[ORM\ManyToOne(targetEntity: Housing::class, inversedBy: 'imputations')]
     #[ORM\JoinColumn(nullable: false)]
     #[Groups(['imputation:read', 'imputation:write'])]
     private ?Housing $housing = null;
@@ -40,13 +43,9 @@ class Imputation
     #[Groups(['imputation:read', 'imputation:write'])]
     private ?\DateTimeImmutable $periodStart = null;
 
-    #[ORM\Column(type: Types::DATE_IMMUTABLE)]
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
     #[Groups(['imputation:read', 'imputation:write'])]
     private ?\DateTimeImmutable $periodEnd = null;
-
-    #[ORM\Column(length: 255, nullable: true)]
-    #[Groups(['imputation:read', 'imputation:write'])]
-    private ?string $invoiceFile = null; // Chemin vers la facture PDF
 
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     #[Groups(['imputation:read', 'imputation:write'])]
@@ -126,22 +125,16 @@ class Imputation
         return $this->periodEnd;
     }
 
-    public function setPeriodEnd(\DateTimeImmutable $periodEnd): static
+    public function setPeriodEnd(?\DateTimeImmutable $periodEnd): static
     {
+        if ($periodEnd !== null && $this->periodStart !== null && $periodEnd < $this->periodStart) {
+            throw new \InvalidArgumentException('periodEnd must be after periodStart');
+        }
         $this->periodEnd = $periodEnd;
         return $this;
     }
 
-    public function getInvoiceFile(): ?string
-    {
-        return $this->invoiceFile;
-    }
 
-    public function setInvoiceFile(?string $invoiceFile): static
-    {
-        $this->invoiceFile = $invoiceFile;
-        return $this;
-    }
 
     public function getNote(): ?string
     {

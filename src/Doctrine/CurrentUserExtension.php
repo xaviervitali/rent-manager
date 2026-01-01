@@ -65,19 +65,17 @@ final class CurrentUserExtension implements QueryCollectionExtensionInterface, Q
             $queryBuilder->setParameter('current_user', $user);
         }
 
-        // Filtrer les Imputation par le user du housing via lease
+        // Filtrer les Imputation par le user du housing
         if (Imputation::class === $resourceClass) {
-            $queryBuilder->join(sprintf('%s.lease', $rootAlias), 'l');
-            $queryBuilder->join('l.housing', 'h');
+            $queryBuilder->join(sprintf('%s.housing', $rootAlias), 'h');
             $queryBuilder->andWhere('h.user = :current_user');
             $queryBuilder->setParameter('current_user', $user);
         }
 
-        // Filtrer les Quittance par le user du housing via imputation > lease
+        // Filtrer les Quittance par le user du housing via imputation
         if (Quittance::class === $resourceClass) {
             $queryBuilder->join(sprintf('%s.imputation', $rootAlias), 'i');
-            $queryBuilder->join('i.lease', 'l');
-            $queryBuilder->join('l.housing', 'h');
+            $queryBuilder->join('i.housing', 'h');
             $queryBuilder->andWhere('h.user = :current_user');
             $queryBuilder->setParameter('current_user', $user);
         }
