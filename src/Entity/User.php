@@ -97,6 +97,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $emailVerificationTokenExpiresAt = null;
 
+    #[ORM\Column(length: 6, nullable: true)]
+    private ?string $passwordResetCode = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $passwordResetCodeExpiresAt = null;
+
     #[ORM\ManyToOne(targetEntity: Organization::class)]
     #[ORM\JoinColumn(nullable: true)]
     #[Groups(['user:read', 'user:write'])]
@@ -475,5 +481,42 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         $this->organization = $organization;
         return $this;
+    }
+
+    public function getPasswordResetCode(): ?string
+    {
+        return $this->passwordResetCode;
+    }
+
+    public function setPasswordResetCode(?string $code): static
+    {
+        $this->passwordResetCode = $code;
+        return $this;
+    }
+
+    public function getPasswordResetCodeExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->passwordResetCodeExpiresAt;
+    }
+
+    public function setPasswordResetCodeExpiresAt(?\DateTimeImmutable $expiresAt): static
+    {
+        $this->passwordResetCodeExpiresAt = $expiresAt;
+        return $this;
+    }
+
+    public function isPasswordResetCodeValid(): bool
+    {
+        if (!$this->passwordResetCode || !$this->passwordResetCodeExpiresAt) {
+            return false;
+        }
+        return $this->passwordResetCodeExpiresAt > new \DateTimeImmutable();
+    }
+
+    public function generatePasswordResetCode(): string
+    {
+        $this->passwordResetCode = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $this->passwordResetCodeExpiresAt = new \DateTimeImmutable('+15 minutes');
+        return $this->passwordResetCode;
     }
 }

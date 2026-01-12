@@ -190,8 +190,7 @@ class OrganizationService
      */
     public function createPersonalOrganization(User $user): Organization
     {
-        $name = sprintf('%s %s', $user->getFirstname() ?? '', $user->getLastname() ?? '');
-        $name = trim($name) ?: $user->getEmail();
+        $name = $user->getEmail();
 
         return $this->createOrganization($name . ' - Personnel', 'Organisation personnelle', $user);
     }
