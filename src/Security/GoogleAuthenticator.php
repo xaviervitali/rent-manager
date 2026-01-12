@@ -6,6 +6,7 @@ use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use KnpU\OAuth2ClientBundle\Client\ClientRegistry;
 use KnpU\OAuth2ClientBundle\Security\Authenticator\OAuth2Authenticator;
+use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -21,7 +22,8 @@ class GoogleAuthenticator extends OAuth2Authenticator
     public function __construct(
         private ClientRegistry $clientRegistry,
         private EntityManagerInterface $entityManager,
-        private UrlGeneratorInterface $urlGenerator
+        private UrlGeneratorInterface $urlGenerator,
+        private JWTTokenManagerInterface $jwtManager
     ) {
     }
 
@@ -63,8 +65,6 @@ class GoogleAuthenticator extends OAuth2Authenticator
                 
                 $user = new User();
                 $user->setEmail($email);
-                $user->setFirstname($googleUser->getFirstName() ?? '');
-                $user->setLastname($googleUser->getLastName() ?? '');
                 $user->setRoles(['ROLE_USER']);
                 $user->setPassword(bin2hex(random_bytes(32)));
                 $user->setCreatedAt(new \DateTimeImmutable());
@@ -83,21 +83,22 @@ class GoogleAuthenticator extends OAuth2Authenticator
     public function onAuthenticationSuccess(Request $request, TokenInterface $token, string $firewallName): ?Response
     {
         $user = $token->getUser();
-        
+
         error_log('=== onAuthenticationSuccess START ===');
         error_log('User authenticated: ' . $user->getUserIdentifier());
         error_log('User ID: ' . $user->getId());
-        
-        // Stocker l'ID de l'utilisateur en session
-        $session = $request->getSession();
-        $session->set('google_auth_user_id', $user->getId());
-        
-        error_log('User ID stored in session: ' . $session->get('google_auth_user_id'));
-        
-        $redirectUrl = $this->urlGenerator->generate('google_auth_success');
+
+        // Générer le JWT directement ici pour éviter les problèmes
+        $jwtToken = $this->jwtManager->create($user);
+        error_log('JWT generated: ' . substr($jwtToken, 0, 20) . '...');
+
+        // Rediriger directement vers le frontend avec le token
+        $frontendUrl = $_ENV['FRONTEND_URL'];
+        $redirectUrl = sprintf('%s/auth/google/callback?token=%s', $frontendUrl, $jwtToken);
+
         error_log('Redirecting to: ' . $redirectUrl);
         error_log('=== onAuthenticationSuccess END ===');
-        
+
         return new RedirectResponse($redirectUrl);
     }
 

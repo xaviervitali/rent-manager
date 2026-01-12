@@ -6,6 +6,7 @@ use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Delete;
 use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Put;
 use App\Repository\LeaseRepository;
@@ -21,15 +22,15 @@ use Symfony\Component\Serializer\Annotation\Groups;
 #[ORM\HasLifecycleCallbacks]
 #[ApiResource(
     operations: [
-        new GetCollection(),
-        new Get(),
+        new GetCollection(provider: LeaseStateProvider::class),
+        new Get(provider: LeaseStateProvider::class),
         new Post(processor: LeaseProcessor::class),
         new Put(processor: LeaseProcessor::class),
+        new Patch(processor: LeaseProcessor::class),
         new Delete()
     ],
     normalizationContext: ['groups' => ['lease:read']],
-    denormalizationContext: ['groups' => ['lease:write']],
-    provider: LeaseStateProvider::class
+    denormalizationContext: ['groups' => ['lease:write']]
 )]
 class Lease
 {
@@ -77,6 +78,7 @@ class Lease
 
     #[ORM\ManyToOne(inversedBy: 'leases')]
     private ?User $user = null;
+
 
     // ========================================
     // Propriétés dynamiques (remplies par LeaseStateProvider)
@@ -345,4 +347,6 @@ class Lease
             $this->housing?->getTitle() ?? 'Sans logement'
         );
     }
+
+
 }

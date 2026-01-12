@@ -3,7 +3,14 @@
 namespace App\Entity;
 
 use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Delete;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Patch;
+use ApiPlatform\Metadata\Post;
+use ApiPlatform\Metadata\Put;
 use App\Repository\ChargeTypeRepository;
+use App\State\ChargeTypeProcessor;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
@@ -13,6 +20,14 @@ use Symfony\Component\Serializer\Annotation\Groups;
 #[ORM\Entity(repositoryClass: ChargeTypeRepository::class)]
 #[ORM\HasLifecycleCallbacks]
 #[ApiResource(
+    operations: [
+        new GetCollection(),
+        new Get(),
+        new Post(processor: ChargeTypeProcessor::class),
+        new Put(processor: ChargeTypeProcessor::class),
+        new Patch(processor: ChargeTypeProcessor::class),
+        new Delete()
+    ],
     normalizationContext: ['groups' => ['charge_type:read']],
     denormalizationContext: ['groups' => ['charge_type:write']]
 )]
@@ -61,6 +76,11 @@ class ChargeType
      */
     #[ORM\OneToMany(targetEntity: Imputation::class, mappedBy: 'type')]
     private Collection $imputations;
+
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(nullable: true)]
+    #[Groups(['charge_type:read'])]
+    private ?User $user = null;
 
     // Constantes pour les périodicités
     public const PERIODICITY_MONTHLY = 'monthly';        // Mensuel
@@ -282,5 +302,17 @@ public function getIsRentComponent(): bool
     public function __toString(): string
     {
         return $this->label ?? '';
+    }
+
+
+    public function getUser(): ?User
+    {
+        return $this->user;
+    }
+
+    public function setUser(?User $user): static
+    {
+        $this->user = $user;
+        return $this;
     }
 }

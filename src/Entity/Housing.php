@@ -132,7 +132,7 @@ class Housing
     /**
      * Indique si le logement a un bail actif
      */
-    #[Groups(['housing:read'])]
+        #[Groups(['housing:read'])]
     public ?bool $hasActiveLease = null;
 
     /**
@@ -140,6 +140,9 @@ class Housing
      */
     #[Groups(['housing:read'])]
     public ?array $imputationsList = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    #[Groups(['housing:read'])]    private ?string $type = null;
 
     #[ORM\PrePersist]
     public function setCreatedAtValue(): void
@@ -332,10 +335,24 @@ class Housing
     public function getActiveLease(): ?Lease
 {
     foreach ($this->leases as $lease) {
-        if ($lease->isActive()) { // ou autre logique pour déterminer le bail actif
+        if ($lease->isActive()) {
             return $lease;
         }
     }
     return null;
 }
+
+    public function getType(): ?string
+    {
+        return $this->type;
+    }
+
+    public function setType(?string $type): static
+    {
+        $this->type = $type;
+
+        return $this;
+    }
+
+
 }

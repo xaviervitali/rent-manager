@@ -25,7 +25,7 @@ class GoogleController extends AbstractController
             ], []);
     }
 
-    #[Route('/connect/google/check', name: 'connect_google_check')]
+    #[Route('/api/oauth/google/callback', name: 'connect_google_check')]
     public function connectCheckAction(Request $request): Response
     {
         // Cette route est interceptée par GoogleAuthenticator
@@ -39,15 +39,14 @@ class GoogleController extends AbstractController
     ): RedirectResponse {
         error_log('=== authSuccessAction START ===');
 
-        // Récupérer l'utilisateur depuis la session
-        $session = $request->getSession();
-        $userId = $session->get('google_auth_user_id');
+        // Récupérer l'utilisateur depuis le paramètre URL (plus fiable que la session)
+        $userId = $request->query->get('user_id');
 
-        error_log('User ID from session: ' . ($userId ?? 'NULL'));
+        error_log('User ID from URL: ' . ($userId ?? 'NULL'));
 
         if (!$userId) {
-            error_log('ERROR: No user ID in session');
-            $frontendUrl = $_ENV['FRONTEND_URL'] ?? 'http://localhost:5173';
+            error_log('ERROR: No user ID in URL');
+            $frontendUrl = $_ENV['FRONTEND_URL'] ?? 'http://localhost:4200';
             $redirectUrl = $frontendUrl . '/login?error=no_user_id';
             error_log('Redirecting to: ' . $redirectUrl);
             return new RedirectResponse($redirectUrl);
@@ -57,7 +56,7 @@ class GoogleController extends AbstractController
 
         if (!$user) {
             error_log('ERROR: User not found in database with ID: ' . $userId);
-            $frontendUrl = $_ENV['FRONTEND_URL'] ?? 'http://localhost:5173';
+            $frontendUrl = $_ENV['FRONTEND_URL'] ?? 'http://localhost:4200';
             $redirectUrl = $frontendUrl . '/login?error=user_not_found';
             error_log('Redirecting to: ' . $redirectUrl);
             return new RedirectResponse($redirectUrl);
@@ -65,15 +64,12 @@ class GoogleController extends AbstractController
 
         error_log('User found: ' . $user->getEmail());
 
-        // Nettoyer la session
-        $session->remove('google_auth_user_id');
-
         // Générer le JWT
         $token = $jwtManager->create($user);
         error_log('JWT token generated: ' . substr($token, 0, 20) . '...');
 
         // Rediriger vers le frontend avec le token
-        $frontendUrl = $_ENV['FRONTEND_URL'];
+        $frontendUrl = $_ENV['FRONTEND_URL'] ?? 'http://localhost:4200';
         $redirectUrl = sprintf('%s/auth/google/callback?token=%s', $frontendUrl, $token);
 
         error_log('Final redirect URL: ' . $redirectUrl);

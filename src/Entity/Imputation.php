@@ -59,6 +59,7 @@ class Imputation
     #[Groups(['imputation:read'])]
     private ?\DateTimeImmutable $updatedAt = null;
 
+
     public function __construct()
     {
         $this->createdAt = new \DateTimeImmutable();
@@ -177,4 +178,5 @@ class Imputation
             $this->amount ?? '0'
         );
     }
+
 }

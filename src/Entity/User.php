@@ -8,26 +8,43 @@ use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Component\Serializer\Annotation\Groups;
 use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Patch;
+use ApiPlatform\Metadata\Put;
 
 #[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\UniqueConstraint(name: 'UNIQ_IDENTIFIER_EMAIL', fields: ['email'])]
 #[ORM\HasLifecycleCallbacks]
-#[ApiResource]
+#[ApiResource(
+    operations: [
+        new Get(),
+        new GetCollection(),
+        new Put(),
+        new Patch()
+    ],
+    normalizationContext: ['groups' => ['user:read']],
+    denormalizationContext: ['groups' => ['user:write']]
+)]
 class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[Groups(['user:read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 180)]
+    #[Groups(['user:read', 'user:write'])]
     private ?string $email = null;
 
     /**
      * @var list<string> The user roles
      */
     #[ORM\Column]
+    #[Groups(['user:read'])]
     private array $roles = [];
 
     /**
@@ -36,19 +53,13 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column]
     private ?string $password = null;
 
-    #[ORM\Column(length: 255, nullable: true)]
-    private ?string $firstname = null;
-
-    #[ORM\Column(length: 255, nullable: true)]
-    private ?string $lastname = null;
-
-    #[ORM\Column(length: 255, nullable: true)]
-    private ?string $phone = null;
 
     #[ORM\Column]
+    #[Groups(['user:read'])]
     private ?\DateTimeImmutable $createdAt = null;
 
     #[ORM\Column]
+    #[Groups(['user:read'])]
     private ?\DateTimeImmutable $updatedAt = null;
 
     /**
@@ -69,16 +80,29 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\OneToMany(targetEntity: Lease::class, mappedBy: 'user')]
     private Collection $leases;
 
-    #[ORM\Column(length: 255, nullable: true)]
-    private ?string $address = null;
+    /**
+     * @var Collection<int, OrganizationMember>
+     */
+    #[ORM\OneToMany(targetEntity: OrganizationMember::class, mappedBy: 'user', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    private Collection $organizationMemberships;
 
-    #[ORM\Column(length: 255, nullable: true)]
-    private ?string $city = null;
-
-    #[ORM\Column(length: 255, nullable: true)]
     private ?string $cityCode = null;
 
-        #[ORM\PrePersist]
+    #[ORM\Column(type: 'boolean')]
+    private bool $emailVerified = false;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $emailVerificationToken = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $emailVerificationTokenExpiresAt = null;
+
+    #[ORM\ManyToOne(targetEntity: Organization::class)]
+    #[ORM\JoinColumn(nullable: true)]
+    #[Groups(['user:read', 'user:write'])]
+    private ?Organization $organization = null;
+
+    #[ORM\PrePersist]
     public function setCreatedAtValue(): void
     {
         $this->createdAt = new \DateTimeImmutable();
@@ -95,6 +119,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->housings = new ArrayCollection();
         $this->tenants = new ArrayCollection();
         $this->leases = new ArrayCollection();
+        $this->organizationMemberships = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -178,41 +203,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         // @deprecated, to be removed when upgrading to Symfony 8
     }
 
-    public function getFirstname(): ?string
-    {
-        return $this->firstname;
-    }
-
-    public function setFirstname(?string $firstname): static
-    {
-        $this->firstname = $firstname;
-
-        return $this;
-    }
-
-    public function getLastname(): ?string
-    {
-        return $this->lastname;
-    }
-
-    public function setLastname(?string $lastname): static
-    {
-        $this->lastname = $lastname;
-
-        return $this;
-    }
-
-    public function getPhone(): ?string
-    {
-        return $this->phone;
-    }
-
-    public function setPhone(?string $phone): static
-    {
-        $this->phone = $phone;
-
-        return $this;
-    }
 
     public function getCreatedAt(): ?\DateTimeImmutable
     {
@@ -364,4 +354,126 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
+    public function isEmailVerified(): bool
+    {
+        return $this->emailVerified;
+    }
+
+    public function setEmailVerified(bool $emailVerified): static
+    {
+        $this->emailVerified = $emailVerified;
+
+        return $this;
+    }
+
+    public function getEmailVerificationToken(): ?string
+    {
+        return $this->emailVerificationToken;
+    }
+
+    public function setEmailVerificationToken(?string $token): static
+    {
+        $this->emailVerificationToken = $token;
+
+        return $this;
+    }
+
+    public function getEmailVerificationTokenExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->emailVerificationTokenExpiresAt;
+    }
+
+    public function setEmailVerificationTokenExpiresAt(?\DateTimeImmutable $expiresAt): static
+    {
+        $this->emailVerificationTokenExpiresAt = $expiresAt;
+
+        return $this;
+    }
+
+    public function isEmailVerificationTokenValid(): bool
+    {
+        if (!$this->emailVerificationToken || !$this->emailVerificationTokenExpiresAt) {
+            return false;
+        }
+        return $this->emailVerificationTokenExpiresAt > new \DateTimeImmutable();
+    }
+
+    public function generateEmailVerificationToken(): string
+    {
+        $this->emailVerificationToken = bin2hex(random_bytes(32));
+        $this->emailVerificationTokenExpiresAt = new \DateTimeImmutable('+24 hours');
+        return $this->emailVerificationToken;
+    }
+
+    /**
+     * @return Collection<int, OrganizationMember>
+     */
+    public function getOrganizationMemberships(): Collection
+    {
+        return $this->organizationMemberships;
+    }
+
+    public function addOrganizationMembership(OrganizationMember $membership): static
+    {
+        if (!$this->organizationMemberships->contains($membership)) {
+            $this->organizationMemberships->add($membership);
+            $membership->setUser($this);
+        }
+        return $this;
+    }
+
+    public function removeOrganizationMembership(OrganizationMember $membership): static
+    {
+        if ($this->organizationMemberships->removeElement($membership)) {
+            if ($membership->getUser() === $this) {
+                $membership->setUser(null);
+            }
+        }
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Organization>
+     */
+    public function getOrganizations(): Collection
+    {
+        return $this->organizationMemberships->map(fn(OrganizationMember $m) => $m->getOrganization());
+    }
+
+    /**
+     * Vérifie si l'utilisateur est membre d'une organisation
+     */
+    public function isMemberOf(Organization $organization): bool
+    {
+        foreach ($this->organizationMemberships as $membership) {
+            if ($membership->getOrganization() === $organization) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Vérifie si l'utilisateur est admin d'une organisation
+     */
+    public function isAdminOf(Organization $organization): bool
+    {
+        foreach ($this->organizationMemberships as $membership) {
+            if ($membership->getOrganization() === $organization && $membership->isAdmin()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public function getOrganization(): ?Organization
+    {
+        return $this->organization;
+    }
+
+    public function setOrganization(?Organization $organization): static
+    {
+        $this->organization = $organization;
+        return $this;
+    }
 }

@@ -6,7 +6,9 @@ namespace App\State;
 use ApiPlatform\Metadata\Operation;
 use ApiPlatform\State\ProcessorInterface;
 use App\Entity\Housing;
+use App\Entity\User;
 use App\Repository\HousingRepository;
+use App\Service\OrganizationService;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
@@ -17,7 +19,8 @@ class HousingProcessor implements ProcessorInterface
         #[Autowire(service: 'api_platform.doctrine.orm.state.persist_processor')]
         private ProcessorInterface $persistProcessor,
         private Security $security,
-        private HousingRepository $housingRepository
+        private HousingRepository $housingRepository,
+        private OrganizationService $organizationService
     ) {
     }
 
@@ -59,6 +62,14 @@ class HousingProcessor implements ProcessorInterface
 
         // ✅ TOUJOURS forcer le user
         $data->setUser($user);
+
+        // ✅ Assigner l'organisation par défaut si non définie
+        if (!$data->getOrganization() && !$isUpdate) {
+            $defaultOrg = $this->organizationService->getDefaultOrganization();
+            if ($defaultOrg) {
+                $data->setOrganization($defaultOrg);
+            }
+        }
 
         // 🔥 Validation du doublon
         $criteria = [

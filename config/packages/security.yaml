@@ -20,7 +20,7 @@ security:
 
         # 🔥 Firewall PRINCIPAL pour Google OAuth
         google_oauth:
-            pattern: ^/(connect/google/check|auth/google)
+            pattern: ^/(api/oauth/google/callback|auth/google)
             stateless: false
             custom_authenticators:
                 - App\Security\GoogleAuthenticator
@@ -34,6 +34,12 @@ security:
                 check_path: /api/login_check
                 success_handler: lexik_jwt_authentication.handler.authentication_success
                 failure_handler: lexik_jwt_authentication.handler.authentication_failure
+
+        # Routes publiques (inscription, vérification email)
+        public_api:
+            pattern: ^/api/(register|verify-email|resend-verification)$
+            stateless: true
+            security: false
 
         # API protégée par JWT
         api:

@@ -70,6 +70,12 @@ class Tenant
 
     #[ORM\ManyToOne(inversedBy: 'tenants')]
     private ?User $user = null;
+
+    #[ORM\ManyToOne(targetEntity: Organization::class)]
+    #[ORM\JoinColumn(nullable: true)]
+    #[Groups(['tenant:read', 'tenant:write'])]
+    private ?Organization $organization = null;
+
     public function __construct()
     {
         $this->createdAt = new \DateTimeImmutable();
@@ -301,6 +307,17 @@ class Tenant
     {
         $this->user = $user;
 
+        return $this;
+    }
+
+    public function getOrganization(): ?Organization
+    {
+        return $this->organization;
+    }
+
+    public function setOrganization(?Organization $organization): static
+    {
+        $this->organization = $organization;
         return $this;
     }
 }

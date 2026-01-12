@@ -9,6 +9,7 @@ use App\Entity\Housing;
 use App\Entity\Lease;
 use App\Entity\LeaseTenant;
 use App\Entity\Tenant;
+use App\Service\OrganizationService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -19,7 +20,8 @@ class TenantProcessor implements ProcessorInterface
         #[Autowire(service: 'api_platform.doctrine.orm.state.persist_processor')]
         private ProcessorInterface $persistProcessor,
         private EntityManagerInterface $em,
-        private Security $security
+        private Security $security,
+        private OrganizationService $organizationService
     ) {}
 
     public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = []): mixed
@@ -34,7 +36,16 @@ class TenantProcessor implements ProcessorInterface
         if ($currentUser) {
             $data->setUser($currentUser);
         } else {
-            throw new \LogicException('Impossible de récupérer l’utilisateur connecté.');
+            throw new \LogicException('Impossible de récupérer l\'utilisateur connecté.');
+        }
+
+        // ✅ Assigner l'organisation par défaut si non définie (création uniquement)
+        $isUpdate = isset($context['previous_data']);
+        if (!$data->getOrganization() && !$isUpdate) {
+            $defaultOrg = $this->organizationService->getDefaultOrganization();
+            if ($defaultOrg) {
+                $data->setOrganization($defaultOrg);
+            }
         }
 
         // Vérifier s'il y a un déménagement demandé

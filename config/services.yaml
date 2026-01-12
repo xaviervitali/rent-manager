@@ -1,11 +1,23 @@
+parameters:
+    mailer_from: '%env(MAILER_FROM)%'
+    frontend_url: '%env(FRONTEND_URL)%'
+
 services:
     _defaults:
         autowire: true
         autoconfigure: true
 
+    App\Controller\:
+        resource: '../src/Controller/'
+        tags: ['controller.service_arguments']
+        bind:
+            string $mailerFrom: '%mailer_from%'
+            string $frontendUrl: '%frontend_url%'
+
     App\:
         resource: '../src/'
         exclude:
+            - '../src/Controller/'
             - '../src/DependencyInjection/'
             - '../src/Entity/'
             - '../src/Kernel.php'

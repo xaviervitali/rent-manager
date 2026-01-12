@@ -31,13 +31,24 @@ class TenantRepository extends ServiceEntityRepository
 //        ;
 //    }
 
-//    public function findOneBySomeField($value): ?Tenant
-//    {
-//        return $this->createQueryBuilder('t')
-//            ->andWhere('t.exampleField = :val')
-//            ->setParameter('val', $value)
-//            ->getQuery()
-//            ->getOneOrNullResult()
-//        ;
-//    }
+    /**
+     * Trouve les tenants appartenant à une liste d'utilisateurs
+     *
+     * @param int[] $userIds
+     * @return Tenant[]
+     */
+    public function findByUsers(array $userIds): array
+    {
+        if (empty($userIds)) {
+            return [];
+        }
+
+        return $this->createQueryBuilder('t')
+            ->where('t.user IN (:userIds)')
+            ->setParameter('userIds', $userIds)
+            ->orderBy('t.lastname', 'ASC')
+            ->addOrderBy('t.firstname', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
 }
