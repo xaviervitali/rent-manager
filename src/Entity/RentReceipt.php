@@ -9,11 +9,13 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: RentReceiptRepository::class)]
+#[ORM\Table(name: 'rm_rent_receipt')]  // ← Ajoutez cette ligne
 #[ORM\HasLifecycleCallbacks]
 #[ApiResource(
     normalizationContext: ['groups' => ['rent_receipt:read']],
     denormalizationContext: ['groups' => ['rent_receipt:write']]
 )]
+
 class RentReceipt
 {
     #[ORM\Id]

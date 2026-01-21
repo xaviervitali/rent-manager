@@ -13,6 +13,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: TenantRepository::class)]
+#[ORM\Table(name: 'rm_tenant')]  // ← Ajoutez cette ligne
 #[ORM\HasLifecycleCallbacks]
 #[ApiResource(
     normalizationContext: ['groups' => ['tenant:read']],
@@ -20,6 +21,7 @@ use Symfony\Component\Serializer\Annotation\Groups;
     processor: TenantProcessor::class,
         provider: TenantStateProvider::class  // ← Ajouter
 )]
+
 class Tenant
 {
     #[ORM\Id]

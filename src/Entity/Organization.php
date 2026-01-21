@@ -18,6 +18,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: OrganizationRepository::class)]
+#[ORM\Table(name: 'rm_organization')]  // ← Ajoutez cette ligne
 #[ORM\HasLifecycleCallbacks]
 #[ApiResource(
     operations: [

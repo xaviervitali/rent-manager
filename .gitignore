@@ -19,3 +19,4 @@
 ###< phpunit/phpunit ###
 .env
 .env.dev
+.env.dev

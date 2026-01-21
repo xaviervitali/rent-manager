@@ -18,6 +18,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: ChargeTypeRepository::class)]
+#[ORM\Table(name: 'rm_charge_type')]  // ← Ajoutez cette ligne
 #[ORM\HasLifecycleCallbacks]
 #[ApiResource(
     operations: [
@@ -31,6 +32,7 @@ use Symfony\Component\Serializer\Annotation\Groups;
     normalizationContext: ['groups' => ['charge_type:read']],
     denormalizationContext: ['groups' => ['charge_type:write']]
 )]
+
 class ChargeType
 {
     #[ORM\Id]

@@ -19,6 +19,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: LeaseRepository::class)]
+#[ORM\Table(name: 'rm_lease')]  // ← Ajoutez cette ligne
 #[ORM\HasLifecycleCallbacks]
 #[ApiResource(
     operations: [
@@ -32,6 +33,7 @@ use Symfony\Component\Serializer\Annotation\Groups;
     normalizationContext: ['groups' => ['lease:read']],
     denormalizationContext: ['groups' => ['lease:write']]
 )]
+
 class Lease
 {
     #[ORM\Id]

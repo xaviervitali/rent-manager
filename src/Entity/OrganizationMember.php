@@ -14,6 +14,7 @@ use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: OrganizationMemberRepository::class)]
 #[ORM\HasLifecycleCallbacks]
+#[ORM\Table(name: 'rm_organization_member')]  // ← Ajoutez cette ligne
 #[ORM\UniqueConstraint(name: 'unique_user_organization', columns: ['user_id', 'organization_id'])]
 #[ApiResource(
     operations: [
@@ -26,6 +27,7 @@ use Symfony\Component\Serializer\Annotation\Groups;
     normalizationContext: ['groups' => ['organization_member:read']],
     denormalizationContext: ['groups' => ['organization_member:write']]
 )]
+
 class OrganizationMember
 {
     public const ROLE_ADMIN = 'admin';

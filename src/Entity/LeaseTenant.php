@@ -12,7 +12,7 @@ use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: LeaseTenantRepository::class)]
 #[ORM\Table(
-    name: "lease_tenant",
+    name: "rm_lease_tenant",
     uniqueConstraints: [
         new ORM\UniqueConstraint(name: "lease_tenant_unique", columns: ["lease_id", "tenant_id"])
     ]
@@ -21,7 +21,7 @@ use Symfony\Component\Serializer\Annotation\Groups;
 #[ApiResource(
     normalizationContext: ['groups' => ['lease_tenant:read']],
     denormalizationContext: ['groups' => ['lease_tenant:write']]
-)]
+    )]
 class LeaseTenant
 {
     #[ORM\Id]

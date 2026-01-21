@@ -19,6 +19,7 @@ use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
 use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: HousingRepository::class)]
+#[ORM\Table(name: 'rm_housing')]  // ← Ajoutez cette ligne
 #[ORM\HasLifecycleCallbacks]
 
 #[UniqueEntity(
@@ -39,6 +40,7 @@ use Symfony\Component\Serializer\Annotation\Groups;
     denormalizationContext: ['groups' => ['housing:write']],
     provider: HousingStateProvider::class
 )]
+
 class Housing
 {
     #[ORM\Id]

@@ -16,6 +16,7 @@ use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Put;
 
 #[ORM\Entity(repositoryClass: UserRepository::class)]
+#[ORM\Table(name: 'rm_user')]  // ← Ajoutez cette ligne
 #[ORM\UniqueConstraint(name: 'UNIQ_IDENTIFIER_EMAIL', fields: ['email'])]
 #[ORM\HasLifecycleCallbacks]
 #[ApiResource(
@@ -28,6 +29,7 @@ use ApiPlatform\Metadata\Put;
     normalizationContext: ['groups' => ['user:read']],
     denormalizationContext: ['groups' => ['user:write']]
 )]
+
 class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     #[ORM\Id]
@@ -323,43 +325,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
         return $this;
     }
-
-    public function getAddress(): ?string
-    {
-        return $this->address;
-    }
-
-    public function setAddress(?string $address): static
-    {
-        $this->address = $address;
-
-        return $this;
-    }
-
-    public function getCity(): ?string
-    {
-        return $this->city;
-    }
-
-    public function setCity(?string $city): static
-    {
-        $this->city = $city;
-
-        return $this;
-    }
-
-    public function getCityCode(): ?string
-    {
-        return $this->cityCode;
-    }
-
-    public function setCityCode(?string $cityCode): static
-    {
-        $this->cityCode = $cityCode;
-
-        return $this;
-    }
-
     public function isEmailVerified(): bool
     {
         return $this->emailVerified;
