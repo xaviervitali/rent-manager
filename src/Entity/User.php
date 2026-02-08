@@ -110,6 +110,10 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[Groups(['user:read', 'user:write'])]
     private ?Organization $organization = null;
 
+    #[ORM\Column(length: 20, options: ['default' => 'password'])]
+    #[Groups(['user:read'])]
+    private string $authProvider = 'password';
+
     #[ORM\PrePersist]
     public function setCreatedAtValue(): void
     {
@@ -439,7 +443,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function getOrganization(): ?Organization
     {
-        return $this->organization;
+        // Si le champ direct est défini, l'utiliser
+        if ($this->organization !== null) {
+            return $this->organization;
+        }
+
+        // Sinon, retourner la première organisation via les memberships
+        $firstMembership = $this->organizationMemberships->first();
+        return $firstMembership ? $firstMembership->getOrganization() : null;
     }
 
     public function setOrganization(?Organization $organization): static
@@ -483,5 +494,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->passwordResetCode = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
         $this->passwordResetCodeExpiresAt = new \DateTimeImmutable('+15 minutes');
         return $this->passwordResetCode;
+    }
+
+    public function getAuthProvider(): string
+    {
+        return $this->authProvider;
+    }
+
+    public function setAuthProvider(string $authProvider): static
+    {
+        $this->authProvider = $authProvider;
+        return $this;
     }
 }

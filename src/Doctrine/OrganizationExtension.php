@@ -10,6 +10,7 @@ use App\Entity\ChargeType;
 use App\Entity\Housing;
 use App\Entity\Imputation;
 use App\Entity\Lease;
+use App\Entity\Organization;
 use App\Entity\RentReceipt;
 use App\Entity\Tenant;
 use App\Entity\User;
@@ -37,6 +38,8 @@ class OrganizationExtension implements QueryCollectionExtensionInterface, QueryI
         ChargeType::class,
         Imputation::class,
         RentReceipt::class,
+        Organization::class,
+        User::class,
     ];
 
     public function __construct(
@@ -100,15 +103,25 @@ class OrganizationExtension implements QueryCollectionExtensionInterface, QueryI
         // Récupérer les organisations de l'utilisateur
         $organizations = $this->organizationRepository->findByUser($currentUser);
 
+        // DEBUG temporaire
+        error_log('=== OrganizationExtension DEBUG ===');
+        error_log('User: ' . $currentUser->getEmail() . ' (ID: ' . $currentUser->getId() . ')');
+        error_log('Organizations count: ' . count($organizations));
+
         // Pour chaque organisation, récupérer les membres
         foreach ($organizations as $organization) {
+            error_log('Org: ' . $organization->getName() . ' - Members count: ' . $organization->getMembers()->count());
             foreach ($organization->getMembers() as $member) {
                 $memberId = $member->getUser()?->getId();
+                error_log('  Member: ' . ($member->getUser()?->getEmail() ?? 'null') . ' (ID: ' . $memberId . ')');
                 if ($memberId !== null && !in_array($memberId, $userIds, true)) {
                     $userIds[] = $memberId;
                 }
             }
         }
+
+        error_log('Allowed IDs: ' . implode(', ', $userIds));
+        error_log('=== END DEBUG ===');
 
         return $userIds;
     }
@@ -148,6 +161,29 @@ class OrganizationExtension implements QueryCollectionExtensionInterface, QueryI
             $queryBuilder
                 ->join("$rootAlias.lease", $leaseAlias)
                 ->andWhere("$leaseAlias.user IN (:$paramName)")
+                ->setParameter($paramName, $allowedUserIds);
+            return;
+        }
+
+        // Organization : filtrer par membership
+        if ($resourceClass === Organization::class) {
+            $memberAlias = 'm_filter_' . uniqid();
+            $queryBuilder
+                ->join("$rootAlias.members", $memberAlias)
+                ->andWhere("$memberAlias.user IN (:$paramName)")
+                ->setParameter($paramName, $allowedUserIds);
+            return;
+        }
+
+        // User : filtrer par membership dans organization_member
+        if ($resourceClass === User::class) {
+            $memberAlias = 'om_filter_' . uniqid();
+            $queryBuilder
+                ->join("$rootAlias.organizationMemberships", $memberAlias)
+                ->andWhere("$memberAlias.organization IN (
+                    SELECT IDENTITY(om2.organization) FROM App\Entity\OrganizationMember om2
+                    WHERE om2.user IN (:$paramName)
+                )")
                 ->setParameter($paramName, $allowedUserIds);
             return;
         }

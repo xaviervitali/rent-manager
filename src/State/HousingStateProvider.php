@@ -78,6 +78,10 @@ class HousingStateProvider implements ProviderInterface
 
         // Récupérer toutes les imputations du logement avec leur statut actif
         $housing->imputationsList = $this->getImputationsWithStatus($housing);
+
+        // Compteurs pour documents et événements
+        $housing->documentsCount = $housing->getDocuments()->count();
+        $housing->eventsCount = $housing->getEvents()->count();
     }
 
     /**

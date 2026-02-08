@@ -58,17 +58,22 @@ class GoogleAuthenticator extends OAuth2Authenticator
                 
                 if ($existingUser) {
                     error_log('GoogleAuthenticator::authenticate() - Existing user found, ID: ' . $existingUser->getId());
+                    // Mettre à jour le provider si l'utilisateur se connecte via Google
+                    if ($existingUser->getAuthProvider() !== 'google') {
+                        $existingUser->setAuthProvider('google');
+                        $this->entityManager->flush();
+                    }
                     return $existingUser;
                 }
                 
                 error_log('GoogleAuthenticator::authenticate() - Creating new user');
-                
+
                 $user = new User();
                 $user->setEmail($email);
                 $user->setRoles(['ROLE_USER']);
                 $user->setPassword(bin2hex(random_bytes(32)));
-                $user->setCreatedAt(new \DateTimeImmutable());
-                $user->setUpdatedAt(new \DateTimeImmutable());
+                $user->setAuthProvider('google');
+                $user->setEmailVerified(true);
                 
                 $this->entityManager->persist($user);
                 $this->entityManager->flush();

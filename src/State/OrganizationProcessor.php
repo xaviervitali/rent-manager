@@ -37,6 +37,8 @@ class OrganizationProcessor implements ProcessorInterface
 
         // Si c'est une création (POST), ajouter le créateur comme admin
         if ($operation instanceof Post) {
+            $data->setCreatedBy($user);
+
             $member = new OrganizationMember();
             $member->setUser($user);
             $member->setOrganization($data);

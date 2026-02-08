@@ -87,6 +87,11 @@ class Organization
 #[Groups(['organization:read', 'organization:write', 'housing:read', 'tenant:read', 'lease:read', 'user:read'])]
 private ?string $note = null;
 
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(nullable: true)]
+    #[Groups(['organization:read'])]
+    private ?User $createdBy = null;
+
     public function __construct()
     {
         $this->members = new ArrayCollection();
@@ -284,6 +289,18 @@ private ?string $note = null;
     public function setNote(?string $note): static
     {
         $this->note = $note;
+
+        return $this;
+    }
+
+    public function getCreatedBy(): ?User
+    {
+        return $this->createdBy;
+    }
+
+    public function setCreatedBy(?User $createdBy): static
+    {
+        $this->createdBy = $createdBy;
 
         return $this;
     }

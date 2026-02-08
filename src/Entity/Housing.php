@@ -103,6 +103,18 @@ class Housing
     #[ORM\OneToMany(targetEntity: Imputation::class, mappedBy: 'housing')]
     private Collection $imputations;
 
+    /**
+     * @var Collection<int, HousingDocument>
+     */
+    #[ORM\OneToMany(targetEntity: HousingDocument::class, mappedBy: 'housing', orphanRemoval: true)]
+    private Collection $documents;
+
+    /**
+     * @var Collection<int, HousingEvent>
+     */
+    #[ORM\OneToMany(targetEntity: HousingEvent::class, mappedBy: 'housing', orphanRemoval: true)]
+    private Collection $events;
+
     // ========================================
     // Propriétés dynamiques (remplies par HousingStateProvider)
     // ========================================
@@ -143,8 +155,27 @@ class Housing
     #[Groups(['housing:read'])]
     public ?array $imputationsList = null;
 
+    /**
+     * Nombre de documents attachés au logement
+     */
+    #[Groups(['housing:read'])]
+    public ?int $documentsCount = null;
+
+    /**
+     * Nombre d'événements dans le journal
+     */
+    #[Groups(['housing:read'])]
+    public ?int $eventsCount = null;
+
     #[ORM\Column(length: 255, nullable: true)]
-    #[Groups(['housing:read'])]    private ?string $type = null;
+    #[Groups(['housing:read'])]
+    private ?string $type = null;
+
+    /**
+     * @var Collection<int, Credit>
+     */
+    #[ORM\OneToMany(targetEntity: Credit::class, mappedBy: 'housing')]
+    private Collection $credits;
 
     #[ORM\PrePersist]
     public function setCreatedAtValue(): void
@@ -163,6 +194,9 @@ class Housing
     {
         $this->leases = new ArrayCollection();
         $this->imputations = new ArrayCollection();
+        $this->documents = new ArrayCollection();
+        $this->events = new ArrayCollection();
+        $this->credits = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -356,5 +390,87 @@ class Housing
         return $this;
     }
 
+    /**
+     * @return Collection<int, HousingDocument>
+     */
+    public function getDocuments(): Collection
+    {
+        return $this->documents;
+    }
 
+    public function addDocument(HousingDocument $document): static
+    {
+        if (!$this->documents->contains($document)) {
+            $this->documents->add($document);
+            $document->setHousing($this);
+        }
+        return $this;
+    }
+
+    public function removeDocument(HousingDocument $document): static
+    {
+        if ($this->documents->removeElement($document)) {
+            if ($document->getHousing() === $this) {
+                $document->setHousing(null);
+            }
+        }
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, HousingEvent>
+     */
+    public function getEvents(): Collection
+    {
+        return $this->events;
+    }
+
+    public function addEvent(HousingEvent $event): static
+    {
+        if (!$this->events->contains($event)) {
+            $this->events->add($event);
+            $event->setHousing($this);
+        }
+        return $this;
+    }
+
+    public function removeEvent(HousingEvent $event): static
+    {
+        if ($this->events->removeElement($event)) {
+            if ($event->getHousing() === $this) {
+                $event->setHousing(null);
+            }
+        }
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Credit>
+     */
+    public function getCredits(): Collection
+    {
+        return $this->credits;
+    }
+
+    public function addCredit(Credit $credit): static
+    {
+        if (!$this->credits->contains($credit)) {
+            $this->credits->add($credit);
+            $credit->setHousing($this);
+        }
+
+        return $this;
+    }
+
+    public function removeCredit(Credit $credit): static
+    {
+        if ($this->credits->removeElement($credit)) {
+            // set the owning side to null (unless already changed)
+            if ($credit->getHousing() === $this) {
+                $credit->setHousing(null);
+            }
+        }
+
+        return $this;
+    }
 }

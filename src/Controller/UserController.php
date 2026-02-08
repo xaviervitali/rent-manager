@@ -2,6 +2,8 @@
 
 namespace App\Controller;
 
+use App\Entity\User;
+use App\Repository\OrganizationRepository;
 use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -15,7 +17,8 @@ class UserController extends AbstractController
     public function __construct(
         private EntityManagerInterface $em,
         private UserPasswordHasherInterface $passwordHasher,
-        private UserRepository $userRepository
+        private UserRepository $userRepository,
+        private OrganizationRepository $organizationRepository
     ) {}
 
     #[Route('/api/users/{id}/change-password', name: 'api_user_change_password', methods: ['POST'])]
@@ -52,5 +55,54 @@ class UserController extends AbstractController
         $this->em->flush();
 
         return new JsonResponse(['message' => 'Mot de passe modifié avec succès']);
+    }
+
+    #[Route('/api/debug/organization-members', name: 'api_debug_org_members', methods: ['GET'])]
+    public function debugOrganizationMembers(): JsonResponse
+    {
+        $currentUser = $this->getUser();
+
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Non authentifié'], 401);
+        }
+
+        $userIds = [$currentUser->getId()];
+        $organizations = $this->organizationRepository->findByUser($currentUser);
+
+        $debug = [
+            'currentUser' => [
+                'id' => $currentUser->getId(),
+                'email' => $currentUser->getEmail(),
+            ],
+            'organizationsCount' => count($organizations),
+            'organizations' => [],
+        ];
+
+        foreach ($organizations as $organization) {
+            $orgData = [
+                'id' => $organization->getId(),
+                'name' => $organization->getName(),
+                'membersCount' => $organization->getMembers()->count(),
+                'members' => [],
+            ];
+
+            foreach ($organization->getMembers() as $member) {
+                $memberId = $member->getUser()?->getId();
+                $orgData['members'][] = [
+                    'userId' => $memberId,
+                    'email' => $member->getUser()?->getEmail(),
+                    'role' => $member->getRole(),
+                ];
+                if ($memberId !== null && !in_array($memberId, $userIds, true)) {
+                    $userIds[] = $memberId;
+                }
+            }
+
+            $debug['organizations'][] = $orgData;
+        }
+
+        $debug['allowedUserIds'] = $userIds;
+
+        return new JsonResponse($debug);
     }
 }
