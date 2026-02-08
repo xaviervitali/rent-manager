@@ -177,6 +177,12 @@ class Housing
     #[ORM\OneToMany(targetEntity: Credit::class, mappedBy: 'housing')]
     private Collection $credits;
 
+    /**
+     * @var Collection<int, Asset>
+     */
+    #[ORM\OneToMany(targetEntity: Asset::class, mappedBy: 'housing')]
+    private Collection $assets;
+
     #[ORM\PrePersist]
     public function setCreatedAtValue(): void
     {
@@ -197,6 +203,7 @@ class Housing
         $this->documents = new ArrayCollection();
         $this->events = new ArrayCollection();
         $this->credits = new ArrayCollection();
+        $this->assets = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -468,6 +475,35 @@ class Housing
             // set the owning side to null (unless already changed)
             if ($credit->getHousing() === $this) {
                 $credit->setHousing(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Asset>
+     */
+    public function getAssets(): Collection
+    {
+        return $this->assets;
+    }
+
+    public function addAsset(Asset $asset): static
+    {
+        if (!$this->assets->contains($asset)) {
+            $this->assets->add($asset);
+            $asset->setHousing($this);
+        }
+
+        return $this;
+    }
+
+    public function removeAsset(Asset $asset): static
+    {
+        if ($this->assets->removeElement($asset)) {
+            if ($asset->getHousing() === $this) {
+                $asset->setHousing(null);
             }
         }
 

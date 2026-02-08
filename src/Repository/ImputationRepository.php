@@ -210,4 +210,77 @@ class ImputationRepository extends ServiceEntityRepository
         ->getArrayResult();
 }
 
+    /**
+     * Récupère les imputations d'un logement pour une année donnée
+     * @return Imputation[]
+     */
+    public function findByHousingAndYear(Housing $housing, int $year): array
+    {
+        $start = new \DateTimeImmutable("$year-01-01");
+        $end = new \DateTimeImmutable("$year-12-31");
+
+        return $this->createQueryBuilder('i')
+            ->join('i.type', 't')
+            ->andWhere('i.housing = :housing')
+            ->andWhere('i.periodStart <= :end')
+            ->andWhere('i.periodEnd IS NULL OR i.periodEnd >= :start')
+            ->setParameter('housing', $housing)
+            ->setParameter('start', $start)
+            ->setParameter('end', $end)
+            ->orderBy('i.periodStart', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Calcule le total des recettes (loyers) pour un logement et une année
+     */
+    public function getTotalRevenuesForYear(Housing $housing, int $year): float
+    {
+        $start = new \DateTimeImmutable("$year-01-01");
+        $end = new \DateTimeImmutable("$year-12-31");
+
+        $result = $this->createQueryBuilder('i')
+            ->select('COALESCE(SUM(i.amount), 0) as total')
+            ->join('i.type', 't')
+            ->andWhere('i.housing = :housing')
+            ->andWhere('t.direction = :direction')
+            ->andWhere('i.periodStart <= :end')
+            ->andWhere('i.periodEnd IS NULL OR i.periodEnd >= :start')
+            ->setParameter('housing', $housing)
+            ->setParameter('direction', 'credit')
+            ->setParameter('start', $start)
+            ->setParameter('end', $end)
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        return (float) ($result ?? 0.0);
+    }
+
+    /**
+     * Calcule le total des charges déductibles pour un logement et une année
+     */
+    public function getTotalDeductibleChargesForYear(Housing $housing, int $year): float
+    {
+        $start = new \DateTimeImmutable("$year-01-01");
+        $end = new \DateTimeImmutable("$year-12-31");
+
+        $result = $this->createQueryBuilder('i')
+            ->select('COALESCE(SUM(i.amount), 0) as total')
+            ->join('i.type', 't')
+            ->andWhere('i.housing = :housing')
+            ->andWhere('t.direction = :direction')
+            ->andWhere('t.isTaxDeductible = :deductible')
+            ->andWhere('i.periodStart <= :end')
+            ->andWhere('i.periodEnd IS NULL OR i.periodEnd >= :start')
+            ->setParameter('housing', $housing)
+            ->setParameter('direction', 'debit')
+            ->setParameter('deductible', true)
+            ->setParameter('start', $start)
+            ->setParameter('end', $end)
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        return (float) ($result ?? 0.0);
+    }
 }

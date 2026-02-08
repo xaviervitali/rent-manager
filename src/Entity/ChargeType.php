@@ -61,6 +61,10 @@ class ChargeType
     #[Groups(['charge_type:read', 'charge_type:write', 'imputation:read',])]
     private string $direction = 'credit'; // credit (recette) ou debit (dépense)
 
+    #[ORM\Column]
+    #[Groups(['charge_type:read', 'charge_type:write', 'imputation:read'])]
+    private bool $isTaxDeductible = false; // Déductible fiscalement ?
+
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     #[Groups(['charge_type:read', 'charge_type:write'])]
     private ?string $comment = null;
@@ -239,6 +243,22 @@ public function getIsRentComponent(): bool
     public function isCredit(): bool
     {
         return $this->direction === self::DIRECTION_CREDIT;
+    }
+
+    public function isTaxDeductible(): bool
+    {
+        return $this->isTaxDeductible;
+    }
+
+    public function getIsTaxDeductible(): bool
+    {
+        return $this->isTaxDeductible;
+    }
+
+    public function setIsTaxDeductible(bool $isTaxDeductible): static
+    {
+        $this->isTaxDeductible = $isTaxDeductible;
+        return $this;
     }
 
     public function getComment(): ?string
